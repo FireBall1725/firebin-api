@@ -71,6 +71,10 @@ func (h *Handler) GetPart(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "could not load part")
 		return
 	}
+	// Attach the commercial tree (MPNs → supplier SKUs → price breaks).
+	if mps, err := h.Catalog.ListManufacturerParts(r.Context(), id); err == nil {
+		p.ManufacturerParts = mps
+	}
 	respond.JSON(w, http.StatusOK, p)
 }
 
