@@ -92,6 +92,7 @@ func (h *Handler) CreatePart(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "part created but parameters failed")
 		return
 	}
+	h.Bus.Publish("parts")
 	full, _ := h.Parts.Get(r.Context(), p.ID)
 	respond.JSON(w, http.StatusCreated, full)
 }
@@ -120,6 +121,7 @@ func (h *Handler) UpdatePart(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "part updated but parameters failed")
 		return
 	}
+	h.Bus.Publish("parts")
 	full, _ := h.Parts.Get(r.Context(), id)
 	respond.JSON(w, http.StatusOK, full)
 }
@@ -138,6 +140,7 @@ func (h *Handler) DeletePart(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "could not delete part")
 		return
 	}
+	h.Bus.Publish("parts")
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 

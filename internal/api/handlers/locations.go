@@ -81,6 +81,7 @@ func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusConflict, "could not create location (duplicate name or barcode?)")
 		return
 	}
+	h.Bus.Publish("locations")
 	respond.JSON(w, http.StatusCreated, l)
 }
 
@@ -103,6 +104,7 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "could not update location")
 		return
 	}
+	h.Bus.Publish("locations")
 	respond.JSON(w, http.StatusOK, l)
 }
 
@@ -120,5 +122,6 @@ func (h *Handler) DeleteLocation(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "could not delete location")
 		return
 	}
+	h.Bus.Publish("locations")
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }

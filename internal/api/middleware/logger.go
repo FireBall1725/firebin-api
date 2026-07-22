@@ -19,6 +19,13 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.ResponseWriter.WriteHeader(code)
 }
 
+// Unwrap exposes the underlying ResponseWriter so http.ResponseController can
+// reach its Flusher — required for the SSE endpoint to stream through this
+// middleware.
+func (r *statusRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
 // Logger logs one structured line per request with method, path, status, and
 // latency.
 func Logger(next http.Handler) http.Handler {

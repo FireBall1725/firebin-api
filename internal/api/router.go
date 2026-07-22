@@ -35,6 +35,14 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	}
 
 	protected("GET /api/v1/me", h.Me)
+
+	// Real-time change stream (SSE)
+	protected("GET /api/v1/events", h.Events)
+
+	// Dashboard
+	protected("GET /api/v1/stats", h.GetStats)
+	protected("GET /api/v1/parts/low-stock", h.LowStock)
+	protected("GET /api/v1/stock/recent", h.RecentActivity)
 	protected("POST /api/v1/tokens", h.CreatePAT)
 	protected("GET /api/v1/tokens", h.ListPATs)
 	protected("DELETE /api/v1/tokens/{id}", h.RevokePAT)
@@ -63,6 +71,7 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	protected("GET /api/v1/locations/scan", h.ScanLocation)
 	protected("POST /api/v1/locations", h.CreateLocation)
 	protected("GET /api/v1/locations/{id}", h.GetLocation)
+	protected("GET /api/v1/locations/{id}/stock", h.ListLocationStock)
 	protected("PATCH /api/v1/locations/{id}", h.UpdateLocation)
 	protected("DELETE /api/v1/locations/{id}", h.DeleteLocation)
 

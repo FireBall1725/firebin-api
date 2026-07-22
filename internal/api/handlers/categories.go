@@ -43,6 +43,7 @@ func (h *Handler) CreateCategory(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusConflict, "could not create category (duplicate name under parent?)")
 		return
 	}
+	h.Bus.Publish("categories")
 	respond.JSON(w, http.StatusCreated, c)
 }
 
@@ -65,6 +66,7 @@ func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "could not update category")
 		return
 	}
+	h.Bus.Publish("categories")
 	respond.JSON(w, http.StatusOK, c)
 }
 
@@ -82,6 +84,7 @@ func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "could not delete category")
 		return
 	}
+	h.Bus.Publish("categories")
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 

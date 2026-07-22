@@ -83,6 +83,8 @@ type StockItem struct {
 type StockTransaction struct {
 	ID                uuid.UUID  `json:"id"`
 	StockItemID       uuid.UUID  `json:"stock_item_id"`
+	PartID            *uuid.UUID `json:"part_id,omitempty"`
+	PartName          *string    `json:"part_name,omitempty"`
 	Kind              string     `json:"kind"`
 	Delta             float64    `json:"delta"`
 	ResultingQuantity float64    `json:"resulting_quantity"`
@@ -91,4 +93,14 @@ type StockTransaction struct {
 	Note              *string    `json:"note,omitempty"`
 	UserID            *uuid.UUID `json:"user_id,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
+}
+
+// Stats is the dashboard summary.
+type Stats struct {
+	PartsCount     int     `json:"parts_count"`
+	VariantsCount  int     `json:"variants_count"`
+	LocationsCount int     `json:"locations_count"`
+	LowStockCount  int     `json:"low_stock_count"`
+	TotalUnits     float64 `json:"total_units"`
+	InventoryValue float64 `json:"inventory_value"`
 }

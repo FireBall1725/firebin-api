@@ -80,6 +80,8 @@ func (h *Handler) AdjustPartStock(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.Bus.Publish("stock")
+	h.Bus.Publish("parts")
 	respond.JSON(w, http.StatusOK, item)
 }
 
@@ -116,5 +118,7 @@ func (h *Handler) MoveStock(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	h.Bus.Publish("stock")
+	h.Bus.Publish("parts")
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "moved"})
 }
