@@ -5,9 +5,11 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/firelabsca/firebin-api/internal/models"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -215,6 +217,22 @@ func (r *CatalogRepo) CreateSupplierPart(ctx context.Context, mfgPartID, supplie
 		}
 	}
 	return id, tx.Commit(ctx)
+}
+
+// FindPartByMPN resolves a part that already has a manufacturer part with this
+// MPN. Used by the scan flow to route a scanned bag to an existing part.
+func (r *CatalogRepo) FindPartByMPN(ctx context.Context, mpn string) (partID uuid.UUID, name string, found bool, err error) {
+	err = r.pool.QueryRow(ctx, `
+		SELECT p.id, p.name FROM manufacturer_parts mp
+		JOIN parts p ON p.id = mp.part_id
+		WHERE mp.mpn = $1 LIMIT 1`, mpn).Scan(&partID, &name)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, "", false, nil
+		}
+		return uuid.Nil, "", false, err
+	}
+	return partID, name, true, nil
 }
 
 func (r *CatalogRepo) DeleteSupplierPart(ctx context.Context, id uuid.UUID) error {
