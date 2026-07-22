@@ -109,6 +109,33 @@ func scanPartWithTotals(row pgx.Row) (*models.Part, error) {
 	return &p, nil
 }
 
+// ListLowStock returns leaf parts (no variants) whose stock is at or below a
+// positive minimum, most-depleted first.
+func (r *PartRepo) ListLowStock(ctx context.Context) ([]models.Part, error) {
+	rows, err := r.pool.Query(ctx, `SELECT `+partCols+`,
+		COALESCE((SELECT SUM(quantity) FROM stock_items s WHERE s.part_id = parts.id), 0)::float8 AS total_stock,
+		0::int AS variant_count
+		FROM parts
+		WHERE minimum_stock > 0
+		  AND NOT EXISTS (SELECT 1 FROM parts v WHERE v.variant_of = parts.id)
+		  AND COALESCE((SELECT SUM(quantity) FROM stock_items s WHERE s.part_id = parts.id), 0) <= minimum_stock
+		ORDER BY (COALESCE((SELECT SUM(quantity) FROM stock_items s WHERE s.part_id = parts.id), 0) - minimum_stock) ASC
+		LIMIT 100`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Part{}
+	for rows.Next() {
+		p, err := scanPartWithTotals(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *p)
+	}
+	return out, rows.Err()
+}
+
 // Get returns one part with its parameters, total stock, and (for templates)
 // its variants.
 func (r *PartRepo) Get(ctx context.Context, id uuid.UUID) (*models.Part, error) {

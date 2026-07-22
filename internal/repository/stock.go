@@ -45,6 +45,61 @@ func (r *StockRepo) ListForPart(ctx context.Context, partID uuid.UUID) ([]models
 	return out, rows.Err()
 }
 
+// ListForLocation returns every stock lot held at a location, with part names.
+func (r *StockRepo) ListForLocation(ctx context.Context, locationID uuid.UUID) ([]models.StockItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT s.id, s.part_id, p.name, s.location_id, l.name, s.supplier_part_id,
+			s.quantity::float8, s.batch, s.serial, s.purchase_price::float8, s.status, s.note,
+			s.added_at, s.updated_at
+		FROM stock_items s
+		JOIN parts p ON p.id = s.part_id
+		LEFT JOIN storage_locations l ON l.id = s.location_id
+		WHERE s.location_id = $1 AND s.quantity <> 0
+		ORDER BY p.name`, locationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.StockItem{}
+	for rows.Next() {
+		var s models.StockItem
+		if err := rows.Scan(&s.ID, &s.PartID, &s.PartName, &s.LocationID, &s.LocationName, &s.SupplierPartID,
+			&s.Quantity, &s.Batch, &s.Serial, &s.PurchasePrice, &s.Status, &s.Note,
+			&s.AddedAt, &s.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// Recent returns the newest stock movements across all parts, each annotated
+// with the part it affected.
+func (r *StockRepo) Recent(ctx context.Context, limit int) ([]models.StockTransaction, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT t.id, t.stock_item_id, s.part_id, p.name, t.kind, t.delta::float8,
+			t.resulting_quantity::float8, t.from_location_id, t.to_location_id, t.note, t.user_id, t.created_at
+		FROM stock_transactions t
+		JOIN stock_items s ON s.id = t.stock_item_id
+		JOIN parts p ON p.id = s.part_id
+		ORDER BY t.created_at DESC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.StockTransaction{}
+	for rows.Next() {
+		var t models.StockTransaction
+		if err := rows.Scan(&t.ID, &t.StockItemID, &t.PartID, &t.PartName, &t.Kind, &t.Delta,
+			&t.ResultingQuantity, &t.FromLocationID, &t.ToLocationID, &t.Note, &t.UserID, &t.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // ListTransactions returns the recent movement log for a part (across its lots).
 func (r *StockRepo) ListTransactions(ctx context.Context, partID uuid.UUID, limit int) ([]models.StockTransaction, error) {
 	rows, err := r.pool.Query(ctx, `

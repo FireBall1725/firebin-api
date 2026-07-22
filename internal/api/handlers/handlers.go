@@ -7,6 +7,7 @@ package handlers
 import (
 	"github.com/firelabsca/firebin-api/internal/auth"
 	"github.com/firelabsca/firebin-api/internal/config"
+	"github.com/firelabsca/firebin-api/internal/events"
 	"github.com/firelabsca/firebin-api/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -22,6 +23,8 @@ type Handler struct {
 	Parts      *repository.PartRepo
 	Locations  *repository.LocationRepo
 	Stock      *repository.StockRepo
+	Stats      *repository.StatsRepo
+	Bus        *events.Broker
 }
 
 // New builds the handler and all its repositories from the connection pool.
@@ -35,5 +38,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) *Handler 
 		Parts:      repository.NewPartRepo(pool),
 		Locations:  repository.NewLocationRepo(pool),
 		Stock:      repository.NewStockRepo(pool),
+		Stats:      repository.NewStatsRepo(pool),
+		Bus:        events.NewBroker(),
 	}
 }
