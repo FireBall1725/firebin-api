@@ -61,7 +61,7 @@ func DetectPanels(data []byte) ([]Panel, error) {
 	if mainPCB == "" {
 		return nil, nil
 	}
-	mainCount := countFootprints(files[mainPCB])
+	mainCount := footprintCount(files[mainPCB])
 	if mainCount == 0 {
 		return nil, nil
 	}
@@ -71,20 +71,32 @@ func DetectPanels(data []byte) ([]Panel, error) {
 		if pk == mainPCB {
 			continue
 		}
-		copies := (countFootprints(files[pk]) + mainCount/2) / mainCount // round
+		b, err := readZipFile(files[pk])
+		if err != nil {
+			continue
+		}
+		s := string(b)
+		copies := (strings.Count(s, "(footprint ") + mainCount/2) / mainCount // round
+		// Treat a second PCB as a panel when it carries a KiKit signature (the
+		// panelizer stamps "KiKit" into the board) OR it holds clearly more than
+		// one copy of the design. This avoids mislabeling a distinct board as a
+		// 1-up "panel".
+		isKiKit := strings.Contains(strings.ToLower(s), "kikit")
+		if !isKiKit && copies < 2 {
+			continue
+		}
 		if copies < 1 {
 			copies = 1
 		}
-		name := path.Base(pk)
-		name = strings.TrimSuffix(name, path.Ext(name))
+		name := strings.TrimSuffix(path.Base(pk), path.Ext(path.Base(pk)))
 		panels = append(panels, Panel{Name: name, Copies: copies})
 	}
 	return panels, nil
 }
 
-// countFootprints counts `(footprint …)` entries in a .kicad_pcb — one per placed
+// footprintCount counts `(footprint …)` entries in a .kicad_pcb — one per placed
 // component. A plain substring count is robust for the KiCad PCB format.
-func countFootprints(f *zip.File) int {
+func footprintCount(f *zip.File) int {
 	if f == nil {
 		return 0
 	}
