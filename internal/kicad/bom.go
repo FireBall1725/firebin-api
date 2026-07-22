@@ -31,11 +31,19 @@ type BOMLine struct {
 	Description  string
 }
 
-// ParseSchematic reads a .kicad_sch file and returns its grouped BOM. It reads
-// the placed symbols (top-level `(symbol …)` entries — not the `lib_symbols`
-// definitions), skips power/no-connect symbols and anything flagged out of BOM
-// or DNP, then groups by value+footprint+MPN.
+// ParseSchematic reads a .kicad_sch file and returns its grouped BOM.
 func ParseSchematic(data []byte) ([]BOMLine, error) {
+	comps, err := componentsFromSchematic(data)
+	if err != nil {
+		return nil, err
+	}
+	return GroupComponents(comps), nil
+}
+
+// componentsFromSchematic reads the placed symbols (top-level `(symbol …)`
+// entries — not the `lib_symbols` definitions), skipping power/no-connect
+// symbols and anything flagged out of BOM or DNP.
+func componentsFromSchematic(data []byte) ([]Component, error) {
 	root, err := parseSexpr(data)
 	if err != nil {
 		return nil, err
@@ -49,7 +57,7 @@ func ParseSchematic(data []byte) ([]BOMLine, error) {
 			comps = append(comps, c)
 		}
 	}
-	return GroupComponents(comps), nil
+	return comps, nil
 }
 
 // componentFromSymbol extracts a Component, returning ok=false for symbols that
