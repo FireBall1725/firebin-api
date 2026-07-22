@@ -24,6 +24,12 @@ type Config struct {
 	// AttachmentStoragePath is the BYO filesystem root for datasheets, part
 	// images, and STEP models. The DB stores path references, not blobs.
 	AttachmentStoragePath string
+
+	// Nexar (Octopart) enrichment credentials. Client-credentials OAuth app
+	// from nexar.com. Empty = enrichment disabled.
+	NexarClientID     string
+	NexarClientSecret string
+	NexarScope        string
 }
 
 func Load() *Config {
@@ -37,6 +43,9 @@ func Load() *Config {
 		RegistrationEnabled:   getEnv("REGISTRATION_ENABLED", "true") != "false",
 		LogLevel:              parseLogLevel(getEnv("LOG_LEVEL", "info")),
 		AttachmentStoragePath: getEnv("ATTACHMENT_STORAGE_PATH", "./data/attachments"),
+		NexarClientID:         getEnv("NEXAR_CLIENT_ID", ""),
+		NexarClientSecret:     getEnv("NEXAR_CLIENT_SECRET", ""),
+		NexarScope:            getEnv("NEXAR_SCOPE", "supply.domain"),
 	}
 }
 

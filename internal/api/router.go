@@ -63,6 +63,18 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	// Scan a distributor barcode (EIGP 114) → parsed fields + part match
 	protected("POST /api/v1/scan", h.Scan)
 
+	// Enrichment (Nexar / Octopart MPN lookup)
+	protected("GET /api/v1/enrich", h.Enrich)
+	protected("GET /api/v1/enrich/status", h.EnrichmentStatus)
+
+	// Enrichment settings (admin)
+	admin := func(pattern string, fn http.HandlerFunc) {
+		mux.Handle(pattern, authn.RequireAdmin(fn))
+	}
+	admin("GET /api/v1/settings/enrichment", h.GetEnrichmentSettings)
+	admin("PUT /api/v1/settings/enrichment", h.UpdateEnrichmentSettings)
+	admin("POST /api/v1/settings/enrichment/test", h.TestEnrichment)
+
 	// Manufacturer & supplier parts (commercial tree)
 	protected("GET /api/v1/manufacturers", h.ListManufacturers)
 	protected("GET /api/v1/suppliers", h.ListSuppliers)
