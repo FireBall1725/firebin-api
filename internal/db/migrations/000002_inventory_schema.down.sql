@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS attachments;
+DROP TABLE IF EXISTS stock_transactions;
+DROP TABLE IF EXISTS stock_items;
+ALTER TABLE IF EXISTS parts DROP CONSTRAINT IF EXISTS fk_parts_default_location;
+DROP TABLE IF EXISTS storage_locations;
+DROP TABLE IF EXISTS supplier_part_pricing;
+DROP TABLE IF EXISTS supplier_parts;
+DROP TABLE IF EXISTS manufacturer_parts;
+DROP TABLE IF EXISTS part_parameters;
+DROP TABLE IF EXISTS parameter_templates;
+DROP TABLE IF EXISTS parts;
+DROP TABLE IF EXISTS suppliers;
+DROP TABLE IF EXISTS manufacturers;
+DROP TABLE IF EXISTS categories;
