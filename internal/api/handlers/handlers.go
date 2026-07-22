@@ -8,6 +8,7 @@ import (
 	"github.com/firelabsca/firebin-api/internal/auth"
 	"github.com/firelabsca/firebin-api/internal/config"
 	"github.com/firelabsca/firebin-api/internal/repository"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Handler bundles the dependencies shared by every endpoint.
@@ -16,8 +17,23 @@ type Handler struct {
 	JWT    *auth.JWTService
 	Users  *repository.UserRepo
 	Tokens *repository.TokenRepo
+
+	Categories *repository.CategoryRepo
+	Parts      *repository.PartRepo
+	Locations  *repository.LocationRepo
+	Stock      *repository.StockRepo
 }
 
-func New(cfg *config.Config, jwt *auth.JWTService, users *repository.UserRepo, tokens *repository.TokenRepo) *Handler {
-	return &Handler{Cfg: cfg, JWT: jwt, Users: users, Tokens: tokens}
+// New builds the handler and all its repositories from the connection pool.
+func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) *Handler {
+	return &Handler{
+		Cfg:        cfg,
+		JWT:        jwt,
+		Users:      repository.NewUserRepo(pool),
+		Tokens:     repository.NewTokenRepo(pool),
+		Categories: repository.NewCategoryRepo(pool),
+		Parts:      repository.NewPartRepo(pool),
+		Locations:  repository.NewLocationRepo(pool),
+		Stock:      repository.NewStockRepo(pool),
+	}
 }
