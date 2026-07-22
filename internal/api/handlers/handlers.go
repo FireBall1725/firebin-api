@@ -24,6 +24,7 @@ type Handler struct {
 	Locations  *repository.LocationRepo
 	Stock      *repository.StockRepo
 	Stats      *repository.StatsRepo
+	Catalog    *repository.CatalogRepo
 	Bus        *events.Broker
 }
 
@@ -39,6 +40,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) *Handler 
 		Locations:  repository.NewLocationRepo(pool),
 		Stock:      repository.NewStockRepo(pool),
 		Stats:      repository.NewStatsRepo(pool),
+		Catalog:    repository.NewCatalogRepo(pool),
 		Bus:        events.NewBroker(),
 	}
 }

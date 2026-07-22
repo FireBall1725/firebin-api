@@ -60,6 +60,14 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	protected("PATCH /api/v1/parts/{id}", h.UpdatePart)
 	protected("DELETE /api/v1/parts/{id}", h.DeletePart)
 
+	// Manufacturer & supplier parts (commercial tree)
+	protected("GET /api/v1/manufacturers", h.ListManufacturers)
+	protected("GET /api/v1/suppliers", h.ListSuppliers)
+	protected("POST /api/v1/parts/{id}/manufacturer-parts", h.CreateManufacturerPart)
+	protected("DELETE /api/v1/manufacturer-parts/{id}", h.DeleteManufacturerPart)
+	protected("POST /api/v1/manufacturer-parts/{id}/supplier-parts", h.CreateSupplierPart)
+	protected("DELETE /api/v1/supplier-parts/{id}", h.DeleteSupplierPart)
+
 	// Stock (scoped to a part)
 	protected("GET /api/v1/parts/{id}/stock", h.ListPartStock)
 	protected("GET /api/v1/parts/{id}/stock/history", h.ListPartStockHistory)

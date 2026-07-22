@@ -47,10 +47,11 @@ type Part struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 
 	// Joined / computed, populated on some reads.
-	TotalStock  float64         `json:"total_stock"`
-	Parameters  []PartParameter `json:"parameters,omitempty"`
-	Variants    []Part          `json:"variants,omitempty"`
-	VariantCount int            `json:"variant_count,omitempty"`
+	TotalStock        float64            `json:"total_stock"`
+	Parameters        []PartParameter    `json:"parameters,omitempty"`
+	Variants          []Part             `json:"variants,omitempty"`
+	VariantCount      int                `json:"variant_count,omitempty"`
+	ManufacturerParts []ManufacturerPart `json:"manufacturer_parts,omitempty"`
 }
 
 type StorageLocation struct {
