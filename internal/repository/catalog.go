@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/firelabsca/firebin-api/internal/models"
 	"github.com/google/uuid"
@@ -61,6 +62,59 @@ func (r *CatalogRepo) ListSuppliers(ctx context.Context) ([]models.Supplier, err
 		out = append(out, s)
 	}
 	return out, rows.Err()
+}
+
+// supplierKeyAliases maps common seller-name substrings (as Nexar/Octopart
+// returns them) to our stable supplier keys.
+var supplierKeyAliases = []struct{ sub, key, name string }{
+	{"digi-key", "digikey", "Digi-Key"},
+	{"digikey", "digikey", "Digi-Key"},
+	{"mouser", "mouser", "Mouser"},
+	{"lcsc", "lcsc", "LCSC"},
+	{"arrow", "arrow", "Arrow"},
+	{"newark", "newark", "Newark"},
+	{"element14", "newark", "Newark"},
+	{"farnell", "farnell", "Farnell"},
+	{"avnet", "avnet", "Avnet"},
+	{"tme", "tme", "TME"},
+	{"verical", "verical", "Verical"},
+}
+
+// normalizeSupplier returns a stable key + display name for a seller name.
+func normalizeSupplier(name string) (key, display string) {
+	low := strings.ToLower(strings.TrimSpace(name))
+	for _, a := range supplierKeyAliases {
+		if strings.Contains(low, a.sub) {
+			return a.key, a.name
+		}
+	}
+	// Unknown: slugify the name for the key, keep the given name for display.
+	key = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			return r
+		case r >= 'A' && r <= 'Z':
+			return r + 32
+		default:
+			return -1
+		}
+	}, low)
+	if key == "" {
+		key = "unknown"
+	}
+	return key, strings.TrimSpace(name)
+}
+
+// GetOrCreateSupplier resolves a supplier by name (or key), creating it if new,
+// and returns its id.
+func (r *CatalogRepo) GetOrCreateSupplier(ctx context.Context, name string) (uuid.UUID, error) {
+	key, display := normalizeSupplier(name)
+	var id uuid.UUID
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO suppliers (key, name) VALUES ($1, $2)
+		ON CONFLICT (key) DO UPDATE SET name = suppliers.name
+		RETURNING id`, key, display).Scan(&id)
+	return id, err
 }
 
 // ── Manufacturer parts ───────────────────────────────────────────────────────
@@ -203,7 +257,12 @@ func (r *CatalogRepo) CreateSupplierPart(ctx context.Context, mfgPartID, supplie
 	var id uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO supplier_parts (manufacturer_part_id, supplier_id, sku, packaging, moq, url)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT (supplier_id, sku) DO UPDATE
+			SET packaging = COALESCE(EXCLUDED.packaging, supplier_parts.packaging),
+			    moq = COALESCE(EXCLUDED.moq, supplier_parts.moq),
+			    url = COALESCE(EXCLUDED.url, supplier_parts.url)
+		RETURNING id`,
 		mfgPartID, supplierID, sku, packaging, moq, url).Scan(&id); err != nil {
 		return uuid.Nil, err
 	}

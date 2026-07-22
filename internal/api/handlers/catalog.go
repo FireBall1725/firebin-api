@@ -81,6 +81,7 @@ func (h *Handler) DeleteManufacturerPart(w http.ResponseWriter, r *http.Request)
 
 type supplierPartRequest struct {
 	SupplierID uuid.UUID           `json:"supplier_id"`
+	Supplier   string              `json:"supplier"` // name; resolved/created if supplier_id absent
 	SKU        string              `json:"sku"`
 	Packaging  *string             `json:"packaging"`
 	MOQ        *float64            `json:"moq"`
@@ -89,6 +90,7 @@ type supplierPartRequest struct {
 }
 
 // CreateSupplierPart adds a vendor SKU (and price breaks) to a manufacturer part.
+// Accepts either a supplier_id or a supplier name (created on demand).
 func (h *Handler) CreateSupplierPart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r) // manufacturer_part id
 	if !ok {
@@ -98,11 +100,23 @@ func (h *Handler) CreateSupplierPart(w http.ResponseWriter, r *http.Request) {
 	if !respond.Decode(w, r, &req) {
 		return
 	}
-	if req.SupplierID == uuid.Nil || strings.TrimSpace(req.SKU) == "" {
-		respond.Error(w, http.StatusBadRequest, "supplier_id and sku are required")
+	if strings.TrimSpace(req.SKU) == "" {
+		respond.Error(w, http.StatusBadRequest, "sku is required")
 		return
 	}
-	spID, err := h.Catalog.CreateSupplierPart(r.Context(), id, req.SupplierID, strings.TrimSpace(req.SKU), req.Packaging, req.URL, req.MOQ, req.Pricing)
+	supplierID := req.SupplierID
+	if supplierID == uuid.Nil {
+		if strings.TrimSpace(req.Supplier) == "" {
+			respond.Error(w, http.StatusBadRequest, "supplier_id or supplier name is required")
+			return
+		}
+		var err error
+		if supplierID, err = h.Catalog.GetOrCreateSupplier(r.Context(), req.Supplier); err != nil {
+			respond.Error(w, http.StatusInternalServerError, "could not resolve supplier")
+			return
+		}
+	}
+	spID, err := h.Catalog.CreateSupplierPart(r.Context(), id, supplierID, strings.TrimSpace(req.SKU), req.Packaging, req.URL, req.MOQ, req.Pricing)
 	if err != nil {
 		respond.Error(w, http.StatusConflict, "could not create supplier part (duplicate SKU?)")
 		return
