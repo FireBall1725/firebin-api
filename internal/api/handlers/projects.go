@@ -156,6 +156,16 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Pull renderable files (iBOM, image renders) out of a project zip.
+	if format == "kicad_zip" {
+		if assets, err := kicad.ExtractAssets(data); err == nil {
+			for _, a := range assets {
+				rec := &models.ProjectAsset{ProjectID: projectID, BoardID: &board.ID, Name: a.Name, Kind: a.Kind, Mime: a.Mime}
+				_ = h.Projects.CreateAsset(r.Context(), rec, a.Content)
+			}
+		}
+	}
+
 	full, err := h.Projects.GetBoard(r.Context(), board.ID)
 	if err != nil || full == nil {
 		respond.Error(w, http.StatusInternalServerError, "board saved but could not reload")
@@ -180,6 +190,56 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, b)
+}
+
+// ── Assets ───────────────────────────────────────────────────────────────────
+
+func (h *Handler) ListProjectAssets(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	assets, err := h.Projects.ListAssets(r.Context(), id)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not list assets")
+		return
+	}
+	respond.JSON(w, http.StatusOK, assets)
+}
+
+// GetAsset streams a stored asset's raw bytes with its content type, so the web
+// client can render it (iBOM in an iframe, images inline).
+func (h *Handler) GetAsset(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	mime, _, content, found, err := h.Projects.GetAssetContent(r.Context(), id)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not load asset")
+		return
+	}
+	if !found {
+		respond.Error(w, http.StatusNotFound, "asset not found")
+		return
+	}
+	w.Header().Set("Content-Type", mime)
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
+}
+
+func (h *Handler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	if err := h.Projects.DeleteAsset(r.Context(), id); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not delete asset")
+		return
+	}
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {

@@ -35,6 +35,19 @@ type Board struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+// ProjectAsset is a renderable file pulled from a project upload (iBOM HTML or
+// an image render). Content is served separately, not in listings.
+type ProjectAsset struct {
+	ID        uuid.UUID  `json:"id"`
+	ProjectID uuid.UUID  `json:"project_id"`
+	BoardID   *uuid.UUID `json:"board_id,omitempty"`
+	Name      string     `json:"name"`
+	Kind      string     `json:"kind"`
+	Mime      string     `json:"mime"`
+	Size      int64      `json:"size"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
 // BOMLine is one grouped BOM row: components sharing value+footprint(+MPN).
 type BOMLine struct {
 	ID           uuid.UUID  `json:"id"`
