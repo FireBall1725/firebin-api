@@ -98,7 +98,7 @@ func (r *ProjectRepo) Delete(ctx context.Context, id uuid.UUID) error {
 func (r *ProjectRepo) ListBoards(ctx context.Context, projectID uuid.UUID) ([]models.Board, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT b.id, b.project_id, b.name, COALESCE(b.description, ''),
-		       COALESCE(b.source_filename, ''), b.source_format, b.position,
+		       COALESCE(b.source_filename, ''), b.source_format, b.kind, b.copies, b.position,
 		       b.created_at, b.updated_at,
 		       (SELECT COUNT(*) FROM board_bom_lines l WHERE l.board_id = b.id)
 		FROM project_boards b WHERE b.project_id = $1
@@ -111,7 +111,7 @@ func (r *ProjectRepo) ListBoards(ctx context.Context, projectID uuid.UUID) ([]mo
 	for rows.Next() {
 		var b models.Board
 		if err := rows.Scan(&b.ID, &b.ProjectID, &b.Name, &b.Description,
-			&b.SourceFilename, &b.SourceFormat, &b.Position,
+			&b.SourceFilename, &b.SourceFormat, &b.Kind, &b.Copies, &b.Position,
 			&b.CreatedAt, &b.UpdatedAt, &b.LineCount); err != nil {
 			return nil, err
 		}
@@ -121,15 +121,44 @@ func (r *ProjectRepo) ListBoards(ctx context.Context, projectID uuid.UUID) ([]mo
 }
 
 func (r *ProjectRepo) CreateBoard(ctx context.Context, b *models.Board) error {
+	kind := b.Kind
+	if kind == "" {
+		kind = "board"
+	}
+	copies := b.Copies
+	if copies < 1 {
+		copies = 1
+	}
 	return r.pool.QueryRow(ctx, `
-		INSERT INTO project_boards (project_id, name, description, source_filename, source_format, position)
-		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), $5,
+		INSERT INTO project_boards (project_id, name, description, source_filename, source_format, kind, copies, position)
+		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), $5, $6, $7,
 		        COALESCE((SELECT MAX(position)+1 FROM project_boards WHERE project_id = $1), 0))
 		RETURNING id, project_id, name, COALESCE(description, ''),
-		          COALESCE(source_filename, ''), source_format, position, created_at, updated_at`,
-		b.ProjectID, b.Name, b.Description, b.SourceFilename, b.SourceFormat).
+		          COALESCE(source_filename, ''), source_format, kind, copies, position, created_at, updated_at`,
+		b.ProjectID, b.Name, b.Description, b.SourceFilename, b.SourceFormat, kind, copies).
 		Scan(&b.ID, &b.ProjectID, &b.Name, &b.Description, &b.SourceFilename,
-			&b.SourceFormat, &b.Position, &b.CreatedAt, &b.UpdatedAt)
+			&b.SourceFormat, &b.Kind, &b.Copies, &b.Position, &b.CreatedAt, &b.UpdatedAt)
+}
+
+// UpdateBoard changes a board's name and copy count (the panel N-up).
+func (r *ProjectRepo) UpdateBoard(ctx context.Context, id uuid.UUID, name string, copies int) (*models.Board, error) {
+	if copies < 1 {
+		copies = 1
+	}
+	var b models.Board
+	err := r.pool.QueryRow(ctx, `
+		UPDATE project_boards SET name = COALESCE(NULLIF($2, ''), name), copies = $3 WHERE id = $1
+		RETURNING id, project_id, name, COALESCE(description, ''),
+		          COALESCE(source_filename, ''), source_format, kind, copies, position, created_at, updated_at`,
+		id, name, copies).Scan(&b.ID, &b.ProjectID, &b.Name, &b.Description, &b.SourceFilename,
+		&b.SourceFormat, &b.Kind, &b.Copies, &b.Position, &b.CreatedAt, &b.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &b, nil
 }
 
 // GetBoard returns a board with its BOM lines (part name joined when matched).
@@ -137,10 +166,10 @@ func (r *ProjectRepo) GetBoard(ctx context.Context, id uuid.UUID) (*models.Board
 	var b models.Board
 	err := r.pool.QueryRow(ctx, `
 		SELECT id, project_id, name, COALESCE(description, ''),
-		       COALESCE(source_filename, ''), source_format, position, created_at, updated_at
+		       COALESCE(source_filename, ''), source_format, kind, copies, position, created_at, updated_at
 		FROM project_boards WHERE id = $1`, id).
 		Scan(&b.ID, &b.ProjectID, &b.Name, &b.Description, &b.SourceFilename,
-			&b.SourceFormat, &b.Position, &b.CreatedAt, &b.UpdatedAt)
+			&b.SourceFormat, &b.Kind, &b.Copies, &b.Position, &b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil

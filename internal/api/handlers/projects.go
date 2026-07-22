@@ -156,8 +156,21 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Pull renderable files (iBOM, image renders) out of a project zip.
 	if format == "kicad_zip" {
+		// A panel is the same board arrayed N-up (PCB only, no schematic). Add
+		// it as its own board sharing the per-board BOM with a copies multiplier.
+		if panels, err := kicad.DetectPanels(data); err == nil {
+			for _, p := range panels {
+				pb := &models.Board{
+					ProjectID: projectID, Name: p.Name, SourceFilename: filename,
+					SourceFormat: "kicad_panel", Kind: "panel", Copies: p.Copies,
+				}
+				if err := h.Projects.CreateBoard(r.Context(), pb); err == nil {
+					_ = h.Projects.ReplaceBOMLines(r.Context(), pb.ID, matched)
+				}
+			}
+		}
+		// Pull renderable files (iBOM, image renders) out of the zip.
 		if assets, err := kicad.ExtractAssets(data); err == nil {
 			for _, a := range assets {
 				rec := &models.ProjectAsset{ProjectID: projectID, BoardID: &board.ID, Name: a.Name, Kind: a.Kind, Mime: a.Mime}
@@ -240,6 +253,34 @@ func (h *Handler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	h.Bus.Publish("projects")
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+type boardUpdate struct {
+	Name   string `json:"name"`
+	Copies int    `json:"copies"`
+}
+
+// UpdateBoard renames a board or corrects a panel's copy count.
+func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	var req boardUpdate
+	if !respond.Decode(w, r, &req) {
+		return
+	}
+	b, err := h.Projects.UpdateBoard(r.Context(), id, strings.TrimSpace(req.Name), req.Copies)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not update board")
+		return
+	}
+	if b == nil {
+		respond.Error(w, http.StatusNotFound, "board not found")
+		return
+	}
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusOK, b)
 }
 
 func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
