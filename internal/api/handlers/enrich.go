@@ -95,6 +95,29 @@ func deriveName(p *models.EnrichedPart) string {
 	return p.Description
 }
 
+// ensureSlices replaces nil slices with empty ones so JSON encodes them as []
+// rather than null (Go marshals a nil slice as null, which crashes JS consumers
+// that call .length / .map on the result).
+func ensureSlices(p *models.EnrichedPart) {
+	if p == nil {
+		return
+	}
+	if p.Parameters == nil {
+		p.Parameters = []models.EnrichedParameter{}
+	}
+	if p.Suppliers == nil {
+		p.Suppliers = []models.EnrichedSupplier{}
+	}
+	if p.Alternatives == nil {
+		p.Alternatives = []models.EnrichedAlt{}
+	}
+	for i := range p.Suppliers {
+		if p.Suppliers[i].Prices == nil {
+			p.Suppliers[i].Prices = []models.PriceBreak{}
+		}
+	}
+}
+
 // cleanParameters drops empty, pathologically long, and junk parameters so the
 // part gets a tidy spec sheet. Applied to every enrichment result (fresh or
 // cached) before it reaches the client.
@@ -128,6 +151,7 @@ func (h *Handler) Enrich(w http.ResponseWriter, r *http.Request) {
 	if cached, ok, _ := h.EnrichCache.Get(r.Context(), mpn); ok {
 		cleanParameters(cached)
 		cached.Name = deriveName(cached)
+		ensureSlices(cached)
 		respond.JSON(w, http.StatusOK, map[string]any{"found": true, "part": cached, "cached": true})
 		return
 	}
@@ -153,6 +177,7 @@ func (h *Handler) Enrich(w http.ResponseWriter, r *http.Request) {
 	_ = h.EnrichCache.Set(r.Context(), mpn, part) // cache the full hit
 	cleanParameters(part)
 	part.Name = deriveName(part)
+	ensureSlices(part)
 	respond.JSON(w, http.StatusOK, map[string]any{"found": true, "part": part})
 }
 
