@@ -119,7 +119,9 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, 32<<20))
+	// KiCad project zips bundle STEP/render assets we don't need but must still
+	// read past to reach the zip's central directory, so allow a generous cap.
+	data, err := io.ReadAll(io.LimitReader(file, 256<<20))
 	if err != nil {
 		respond.Error(w, http.StatusBadRequest, "could not read upload")
 		return
