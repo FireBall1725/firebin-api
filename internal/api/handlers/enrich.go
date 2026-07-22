@@ -6,6 +6,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/firelabsca/firebin-api/internal/api/respond"
@@ -76,7 +77,12 @@ func deriveName(p *models.EnrichedPart) string {
 		switch strings.ToLower(param.Name) {
 		case "resistance", "capacitance", "inductance":
 			if val == "" {
+				// The unit may have been split into its own column ("100" + "nF");
+				// reattach it so the name reads "100 nF Capacitor", not "100 …".
 				val = strings.TrimSpace(param.Value)
+				if u := strings.TrimSpace(param.Units); u != "" {
+					val += " " + u
+				}
 			}
 		}
 	}
@@ -118,9 +124,48 @@ func ensureSlices(p *models.EnrichedPart) {
 	}
 }
 
-// cleanParameters drops empty, pathologically long, and junk parameters so the
-// part gets a tidy spec sheet. Applied to every enrichment result (fresh or
-// cached) before it reaches the client.
+// paramUnits are the unit suffixes we peel off a "100 V" style value into its
+// own column, longest/most-specific first. The numeric-head guard below means
+// order rarely matters (a fuller unit's extra letter poisons the shorter one's
+// head), but keep multi-char units ahead of their single-char bases anyway.
+var paramUnits = []string{
+	"°C", "°F",
+	"GHz", "MHz", "kHz", "Hz",
+	"mΩ", "kΩ", "MΩ", "GΩ", "Ω",
+	"pF", "nF", "µF", "uF", "mF", "F",
+	"pH", "nH", "µH", "uH", "mH", "H",
+	"mV", "kV", "µV", "uV", "nV", "V",
+	"mAh", "Ah", "mA", "µA", "uA", "nA", "kA", "A",
+	"mW", "kW", "µW", "uW", "W", "VA",
+	"mm", "cm", "nm", "µm", "um", "mil",
+	"dB", "ppm", "%",
+}
+
+// numHead matches a pure measurement magnitude: an optional sign then digits
+// with decimals/commas/ranges. It gates unit-splitting so a value like
+// "Surface Mount" or "Production" is never mistaken for "<number> <unit>".
+var numHead = regexp.MustCompile(`^[±+\-]?\d[\d.,\s±\-+]*$`)
+
+// splitUnit peels a trailing unit off a value: "100 V" → ("100", "V"),
+// "1.25 mm" → ("1.25", "mm"), "10 %" → ("10", "%"). Returns the value unchanged
+// with an empty unit when nothing looks like a unit.
+func splitUnit(value string) (string, string) {
+	v := strings.TrimSpace(value)
+	for _, u := range paramUnits {
+		if strings.HasSuffix(v, u) {
+			head := strings.TrimSpace(v[:len(v)-len(u)])
+			if head != "" && numHead.MatchString(head) {
+				return head, u
+			}
+		}
+	}
+	return v, ""
+}
+
+// cleanParameters drops empty, pathologically long, and junk parameters, and
+// splits a trailing unit into its own column, so the part gets a tidy spec
+// sheet. Applied to every enrichment result (fresh or cached) before it reaches
+// the client.
 func cleanParameters(p *models.EnrichedPart) {
 	if p == nil {
 		return
@@ -133,6 +178,15 @@ func cleanParameters(p *models.EnrichedPart) {
 		}
 		if junkParams[strings.ToLower(strings.TrimSpace(param.Name))] {
 			continue
+		}
+		// Only infer a unit when the provider didn't already give one.
+		if strings.TrimSpace(param.Units) == "" {
+			if head, unit := splitUnit(v); unit != "" {
+				param.Value = head
+				param.Units = unit
+			} else {
+				param.Value = v
+			}
 		}
 		out = append(out, param)
 	}
