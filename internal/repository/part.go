@@ -84,18 +84,29 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 
 	out := []models.Part{}
 	for rows.Next() {
-		var p models.Part
-		if err := rows.Scan(
-			&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.Package, &p.Keywords,
-			&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
-			&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
-			&p.TotalStock, &p.VariantCount,
-		); err != nil {
+		p, err := scanPartWithTotals(rows)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, p)
+		out = append(out, *p)
 	}
 	return out, rows.Err()
+}
+
+// scanPartWithTotals scans the base part columns plus the trailing total_stock
+// and variant_count computed columns (as selected by List and Get's variant
+// query).
+func scanPartWithTotals(row pgx.Row) (*models.Part, error) {
+	var p models.Part
+	if err := row.Scan(
+		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.Package, &p.Keywords,
+		&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
+		&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
+		&p.TotalStock, &p.VariantCount,
+	); err != nil {
+		return nil, err
+	}
+	return &p, nil
 }
 
 // Get returns one part with its parameters, total stock, and (for templates)
@@ -117,14 +128,18 @@ func (r *PartRepo) Get(ctx context.Context, id uuid.UUID) (*models.Part, error) 
 	}
 	p.Parameters = params
 
-	// Nest variants for templates.
-	rows, err := r.pool.Query(ctx, `SELECT `+partCols+` FROM parts WHERE variant_of = $1 ORDER BY name`, id)
+	// Nest variants for templates, each annotated with its own total stock and
+	// (nested) variant count — same shape as List rows.
+	rows, err := r.pool.Query(ctx, `SELECT `+partCols+`,
+		COALESCE((SELECT SUM(quantity) FROM stock_items s WHERE s.part_id = parts.id), 0)::float8 AS total_stock,
+		(SELECT COUNT(*) FROM parts vv WHERE vv.variant_of = parts.id)::int AS variant_count
+		FROM parts WHERE variant_of = $1 ORDER BY name`, id)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		v, err := scanPart(rows)
+		v, err := scanPartWithTotals(rows)
 		if err != nil {
 			return nil, err
 		}
