@@ -52,6 +52,47 @@ func TestParseDigiKeyLabel(t *testing.T) {
 	}
 }
 
+// TestParseRealDigiKeyLabel uses the exact string decoded from a real Digi-Key
+// bag (Samsung CL31A475KOHNNNE, 4.7uF 16V X5R 1206, qty 100).
+func TestParseRealDigiKeyLabel(t *testing.T) {
+	code := "[)>" + tRS + "06" + tGS +
+		"P1276-3059-1-ND" + tGS +
+		"1PCL31A475KOHNNNE" + tGS +
+		"K" + tGS +
+		"1K80301470" + tGS +
+		"10K95945419" + tGS +
+		"11K1" + tGS +
+		"4LCN" + tGS +
+		"Q100" + tGS +
+		"11ZPICK" + tGS +
+		"12Z3891145" + tGS +
+		"13Z210599" + tGS +
+		"20Z" + "000000000000000000"
+
+	p := Parse(code)
+	if p.MPN != "CL31A475KOHNNNE" {
+		t.Errorf("MPN = %q, want CL31A475KOHNNNE", p.MPN)
+	}
+	if p.Quantity != 100 {
+		t.Errorf("Quantity = %d, want 100", p.Quantity)
+	}
+	if p.CustomerPart != "1276-3059-1-ND" {
+		t.Errorf("CustomerPart = %q, want 1276-3059-1-ND", p.CustomerPart)
+	}
+	if p.SalesOrder != "80301470" {
+		t.Errorf("SalesOrder = %q, want 80301470", p.SalesOrder)
+	}
+	if p.Invoice != "95945419" {
+		t.Errorf("Invoice = %q, want 95945419", p.Invoice)
+	}
+	if p.CountryOfOrigin != "CN" {
+		t.Errorf("CountryOfOrigin = %q, want CN", p.CountryOfOrigin)
+	}
+	if p.Distributor != "digikey" {
+		t.Errorf("Distributor = %q, want digikey", p.Distributor)
+	}
+}
+
 func TestParseLenientNoHeader(t *testing.T) {
 	// Minimal, header-less, MPN + qty only.
 	code := "1PRC0603FR-071KL" + tGS + "Q5000"
