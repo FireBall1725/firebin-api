@@ -26,6 +26,15 @@ type PartParameter struct {
 	Value        string    `json:"value"`
 }
 
+// ParameterTemplate is a reusable parameter name (+ default units). The web
+// client lists these to power name-typeahead so users reuse "Voltage Rating"
+// instead of coining "Voltage rating", "Volt Rating", etc.
+type ParameterTemplate struct {
+	ID    uuid.UUID `json:"id"`
+	Name  string    `json:"name"`
+	Units *string   `json:"units,omitempty"`
+}
+
 type Part struct {
 	ID                uuid.UUID  `json:"id"`
 	CategoryID        *uuid.UUID `json:"category_id,omitempty"`

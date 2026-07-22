@@ -54,6 +54,7 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	protected("DELETE /api/v1/categories/{id}", h.DeleteCategory)
 
 	// Parts
+	protected("GET /api/v1/parameter-templates", h.ListParameterTemplates)
 	protected("GET /api/v1/parts", h.ListParts)
 	protected("POST /api/v1/parts", h.CreatePart)
 	protected("GET /api/v1/parts/{id}", h.GetPart)

@@ -201,6 +201,17 @@ func (h *Handler) resolveAlternatives(r *http.Request, mps []models.Manufacturer
 	return out
 }
 
+// ListParameterTemplates returns known parameter names for the client's
+// name-typeahead (so users reuse names instead of coining misspellings).
+func (h *Handler) ListParameterTemplates(w http.ResponseWriter, r *http.Request) {
+	t, err := h.Parts.ListParameterTemplates(r.Context())
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not list parameter templates")
+		return
+	}
+	respond.JSON(w, http.StatusOK, t)
+}
+
 func (h *Handler) applyParameters(r *http.Request, partID uuid.UUID, params []partParameterInput) error {
 	for _, p := range params {
 		if strings.TrimSpace(p.Name) == "" {
