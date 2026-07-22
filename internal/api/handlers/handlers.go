@@ -27,10 +27,11 @@ type Handler struct {
 	Locations  *repository.LocationRepo
 	Stock      *repository.StockRepo
 	Stats      *repository.StatsRepo
-	Catalog    *repository.CatalogRepo
-	Settings   *repository.SettingsRepo
-	Bus        *events.Broker
-	Enricher   *nexar.Provider
+	Catalog     *repository.CatalogRepo
+	Settings    *repository.SettingsRepo
+	EnrichCache *repository.EnrichmentCacheRepo
+	Bus         *events.Broker
+	Enricher    *nexar.Provider
 }
 
 // New builds the handler and all its repositories from the connection pool.
@@ -65,9 +66,10 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) *Handler 
 		Locations:  repository.NewLocationRepo(pool),
 		Stock:      repository.NewStockRepo(pool),
 		Stats:      repository.NewStatsRepo(pool),
-		Catalog:    repository.NewCatalogRepo(pool),
-		Settings:   settings,
-		Bus:        events.NewBroker(),
-		Enricher:   nexar.New(creds),
+		Catalog:     repository.NewCatalogRepo(pool),
+		Settings:    settings,
+		EnrichCache: repository.NewEnrichmentCacheRepo(pool),
+		Bus:         events.NewBroker(),
+		Enricher:    nexar.New(creds),
 	}
 }
