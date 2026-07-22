@@ -75,6 +75,9 @@ func (h *Handler) GetPart(w http.ResponseWriter, r *http.Request) {
 	if mps, err := h.Catalog.ListManufacturerParts(r.Context(), id); err == nil {
 		p.ManufacturerParts = mps
 	}
+	// Attach alternates from cached enrichment of this part's MPNs, linked to
+	// inventory where we already stock them. Cache-only — no provider query.
+	p.Alternatives = h.resolveAlternatives(r, p.ManufacturerParts)
 	respond.JSON(w, http.StatusOK, p)
 }
 
@@ -164,6 +167,38 @@ func partFromRequest(req *partRequest) *models.Part {
 		MinimumStock:      req.MinimumStock,
 		DefaultLocationID: req.DefaultLocationID,
 	}
+}
+
+// resolveAlternatives pulls similar-part suggestions from the cached enrichment
+// of this part's MPNs and links each to an inventory part when we stock it.
+func (h *Handler) resolveAlternatives(r *http.Request, mps []models.ManufacturerPart) []models.PartAlternative {
+	ctx := r.Context()
+	own := map[string]bool{}
+	for _, mp := range mps {
+		own[strings.ToLower(mp.MPN)] = true
+	}
+	seen := map[string]bool{}
+	out := []models.PartAlternative{}
+	for _, mp := range mps {
+		enr, ok, err := h.EnrichCache.Get(ctx, mp.MPN)
+		if err != nil || !ok || enr == nil {
+			continue
+		}
+		for _, alt := range enr.Alternatives {
+			key := strings.ToLower(alt.MPN)
+			if alt.MPN == "" || own[key] || seen[key] {
+				continue
+			}
+			seen[key] = true
+			pa := models.PartAlternative{MPN: alt.MPN, Manufacturer: alt.Manufacturer, Description: alt.Description}
+			if pid, name, found, e := h.Catalog.FindPartByMPN(ctx, alt.MPN); e == nil && found {
+				pa.PartID = &pid
+				pa.PartName = &name
+			}
+			out = append(out, pa)
+		}
+	}
+	return out
 }
 
 func (h *Handler) applyParameters(r *http.Request, partID uuid.UUID, params []partParameterInput) error {

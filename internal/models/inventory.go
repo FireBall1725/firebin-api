@@ -52,6 +52,17 @@ type Part struct {
 	Variants          []Part             `json:"variants,omitempty"`
 	VariantCount      int                `json:"variant_count,omitempty"`
 	ManufacturerParts []ManufacturerPart `json:"manufacturer_parts,omitempty"`
+	Alternatives      []PartAlternative  `json:"alternatives,omitempty"`
+}
+
+// PartAlternative is a similar part suggested by enrichment, linked to an
+// inventory part when we already stock it.
+type PartAlternative struct {
+	MPN          string     `json:"mpn"`
+	Manufacturer string     `json:"manufacturer,omitempty"`
+	Description  string     `json:"description,omitempty"`
+	PartID       *uuid.UUID `json:"part_id,omitempty"`   // set if we stock it
+	PartName     *string    `json:"part_name,omitempty"`
 }
 
 type StorageLocation struct {

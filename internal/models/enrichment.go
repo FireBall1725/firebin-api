@@ -16,7 +16,15 @@ type EnrichedPart struct {
 	ImageURL     string              `json:"image_url"`
 	Parameters   []EnrichedParameter `json:"parameters"`
 	Suppliers    []EnrichedSupplier  `json:"suppliers"`
+	Alternatives []EnrichedAlt       `json:"alternatives"`
 	Source       string              `json:"source"` // provider name
+}
+
+// EnrichedAlt is a similar/alternate part suggested by the provider.
+type EnrichedAlt struct {
+	MPN          string `json:"mpn"`
+	Manufacturer string `json:"manufacturer"`
+	Description  string `json:"description"`
 }
 
 type EnrichedParameter struct {

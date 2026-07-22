@@ -130,6 +130,11 @@ query MpnSearch($mpn: String!) {
           company { name }
           offers { sku moq prices { quantity price currency } }
         }
+        similarParts {
+          mpn
+          shortDescription
+          manufacturer { name }
+        }
       }
     }
   }
@@ -233,6 +238,13 @@ type nexarPart struct {
 			} `json:"prices"`
 		} `json:"offers"`
 	} `json:"sellers"`
+	SimilarParts []struct {
+		MPN              string `json:"mpn"`
+		ShortDescription string `json:"shortDescription"`
+		Manufacturer     struct {
+			Name string `json:"name"`
+		} `json:"manufacturer"`
+	} `json:"similarParts"`
 }
 
 func mapPart(p nexarPart) *models.EnrichedPart {
@@ -296,6 +308,20 @@ func mapPart(p nexarPart) *models.EnrichedPart {
 			}
 			out.Suppliers = append(out.Suppliers, sup)
 		}
+	}
+
+	for i, sp := range p.SimilarParts {
+		if i >= 12 {
+			break
+		}
+		if sp.MPN == "" {
+			continue
+		}
+		out.Alternatives = append(out.Alternatives, models.EnrichedAlt{
+			MPN:          sp.MPN,
+			Manufacturer: sp.Manufacturer.Name,
+			Description:  sp.ShortDescription,
+		})
 	}
 	return out
 }
