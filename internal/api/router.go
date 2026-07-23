@@ -74,6 +74,8 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	protected("GET /api/v1/boards/{id}", h.GetBoard)
 	protected("PATCH /api/v1/boards/{id}", h.UpdateBoard)
 	protected("DELETE /api/v1/boards/{id}", h.DeleteBoard)
+	protected("POST /api/v1/boards/{id}/ibom", h.UploadBoardIbom)
+	protected("DELETE /api/v1/boards/{id}/ibom", h.RemoveBoardIbom)
 	protected("POST /api/v1/boards/{id}/lines", h.AddBOMLine)
 	protected("PATCH /api/v1/lines/{id}", h.UpdateBOMLine)
 	protected("DELETE /api/v1/lines/{id}", h.DeleteBOMLine)

@@ -58,7 +58,7 @@ func ExtractAssets(data []byte) ([]Asset, error) {
 		switch {
 		case ext == ".html" || ext == ".htm":
 			b, err := readZipFile(f)
-			if err != nil || !looksLikeIBOM(b) {
+			if err != nil || !LooksLikeIBOM(b) {
 				continue
 			}
 			ibom = append(ibom, Asset{Name: base, Kind: "ibom", Mime: "text/html; charset=utf-8", Content: b})
@@ -78,11 +78,11 @@ func ExtractAssets(data []byte) ([]Asset, error) {
 	return out, nil
 }
 
-// looksLikeIBOM recognizes an Interactive HTML BOM by its generator signatures.
+// LooksLikeIBOM recognizes an Interactive HTML BOM by its generator signatures.
 // It scans the whole file (not just the head): a real iBOM inlines a large CSS
 // block first, so the "pcbdata"/"ibom" markers can sit hundreds of KB in, and
 // the title is "Interactive BOM for KiCAD".
-func looksLikeIBOM(b []byte) bool {
+func LooksLikeIBOM(b []byte) bool {
 	s := strings.ToLower(string(b))
 	return strings.Contains(s, "pcbdata") ||
 		strings.Contains(s, "interactive bom") ||
