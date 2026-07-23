@@ -68,8 +68,11 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	protected("PATCH /api/v1/projects/{id}", h.UpdateProject)
 	protected("DELETE /api/v1/projects/{id}", h.DeleteProject)
 	protected("POST /api/v1/projects/{id}/boards", h.CreateBoard)
+	protected("GET /api/v1/projects/{id}/assets", h.ListProjectAssets)
 	protected("GET /api/v1/boards/{id}", h.GetBoard)
 	protected("DELETE /api/v1/boards/{id}", h.DeleteBoard)
+	protected("GET /api/v1/assets/{id}", h.GetAsset)
+	protected("DELETE /api/v1/assets/{id}", h.DeleteAsset)
 
 	// Scan a distributor barcode (EIGP 114) → parsed fields + part match
 	protected("POST /api/v1/scan", h.Scan)

@@ -208,6 +208,55 @@ func (r *ProjectRepo) ReplaceBOMLines(ctx context.Context, boardID uuid.UUID, li
 	return tx.Commit(ctx)
 }
 
+// ── Assets (renderable files: iBOM, images) ──────────────────────────────────
+
+func (r *ProjectRepo) CreateAsset(ctx context.Context, a *models.ProjectAsset, content []byte) error {
+	return r.pool.QueryRow(ctx, `
+		INSERT INTO project_assets (project_id, board_id, name, kind, mime, size, content)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, created_at`,
+		a.ProjectID, a.BoardID, a.Name, a.Kind, a.Mime, int64(len(content)), content).
+		Scan(&a.ID, &a.CreatedAt)
+}
+
+func (r *ProjectRepo) ListAssets(ctx context.Context, projectID uuid.UUID) ([]models.ProjectAsset, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, project_id, board_id, name, kind, mime, size, created_at
+		FROM project_assets WHERE project_id = $1
+		ORDER BY (kind = 'ibom') DESC, name`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.ProjectAsset{}
+	for rows.Next() {
+		var a models.ProjectAsset
+		if err := rows.Scan(&a.ID, &a.ProjectID, &a.BoardID, &a.Name, &a.Kind, &a.Mime, &a.Size, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// GetAssetContent returns an asset's bytes and mime for serving.
+func (r *ProjectRepo) GetAssetContent(ctx context.Context, id uuid.UUID) (mime, name string, content []byte, found bool, err error) {
+	err = r.pool.QueryRow(ctx, `SELECT mime, name, content FROM project_assets WHERE id = $1`, id).
+		Scan(&mime, &name, &content)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", "", nil, false, nil
+		}
+		return "", "", nil, false, err
+	}
+	return mime, name, content, true, nil
+}
+
+func (r *ProjectRepo) DeleteAsset(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM project_assets WHERE id = $1`, id)
+	return err
+}
+
 // FindPartByValueFootprint matches a non-template part by value and footprint
 // token, for BOM lines that carry no MPN. The footprint match is loose: it
 // looks for the part's package as a substring of the KiCad footprint
