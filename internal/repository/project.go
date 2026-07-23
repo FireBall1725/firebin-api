@@ -347,6 +347,16 @@ func (r *ProjectRepo) DeleteAsset(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+// DeleteBoardAssetsOfKind removes all of a board's assets of one kind (e.g. its
+// iBOM when replacing or clearing it). Returns how many were removed.
+func (r *ProjectRepo) DeleteBoardAssetsOfKind(ctx context.Context, boardID uuid.UUID, kind string) (int64, error) {
+	ct, err := r.pool.Exec(ctx, `DELETE FROM project_assets WHERE board_id = $1 AND kind = $2`, boardID, kind)
+	if err != nil {
+		return 0, err
+	}
+	return ct.RowsAffected(), nil
+}
+
 // FindPartByValueFootprint matches a non-template part by value and footprint
 // token, for BOM lines that carry no MPN. The footprint match is loose: it
 // looks for the part's package as a substring of the KiCad footprint

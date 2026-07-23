@@ -509,6 +509,72 @@ func (h *Handler) CreateBlankBoard(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, board)
 }
 
+// UploadBoardIbom attaches (or replaces) a board's interactive BOM from an
+// uploaded iBOM .html. The board's layout tab then uses it over the generated
+// render; removing it later reverts to the generated render.
+func (h *Handler) UploadBoardIbom(w http.ResponseWriter, r *http.Request) {
+	boardID, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	board, err := h.Projects.GetBoard(r.Context(), boardID)
+	if err != nil || board == nil {
+		respond.Error(w, http.StatusNotFound, "board not found")
+		return
+	}
+	if err := r.ParseMultipartForm(64 << 20); err != nil {
+		respond.Error(w, http.StatusBadRequest, "expected a multipart file upload")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "missing 'file' field")
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 64<<20))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "could not read upload")
+		return
+	}
+	if !kicad.LooksLikeIBOM(data) {
+		respond.Error(w, http.StatusUnprocessableEntity, "that file isn't an Interactive HTML BOM (no pcbdata found)")
+		return
+	}
+
+	// Replace any existing iBOM for this board.
+	if _, err := h.Projects.DeleteBoardAssetsOfKind(r.Context(), boardID, "ibom"); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not replace the existing iBOM")
+		return
+	}
+	name := header.Filename
+	if name == "" {
+		name = "ibom.html"
+	}
+	rec := &models.ProjectAsset{ProjectID: board.ProjectID, BoardID: &boardID, Name: name, Kind: "ibom", Mime: "text/html"}
+	if err := h.Projects.CreateAsset(r.Context(), rec, data); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not save the iBOM")
+		return
+	}
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusCreated, rec)
+}
+
+// RemoveBoardIbom clears a board's interactive BOM. The layout tab falls back to
+// the render FireBin generated on upload.
+func (h *Handler) RemoveBoardIbom(w http.ResponseWriter, r *http.Request) {
+	boardID, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	if _, err := h.Projects.DeleteBoardAssetsOfKind(r.Context(), boardID, "ibom"); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not remove the iBOM")
+		return
+	}
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusOK, map[string]string{"status": "removed"})
+}
+
 type bomLineRequest struct {
 	Refs         string `json:"refs"`
 	Quantity     int    `json:"quantity"`
