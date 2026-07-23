@@ -317,11 +317,54 @@ type previewPanel struct {
 	Copies int    `json:"copies"`
 }
 
+// previewUnmatched is a BOM identity the upload wizard can match before committing.
+type previewUnmatched struct {
+	Key       string `json:"key"`
+	Refs      string `json:"refs"`
+	Value     string `json:"value"`
+	Footprint string `json:"footprint"`
+	MPN       string `json:"mpn"`
+}
+
+// SetProjectMatch writes a project match rule (a BOM identity → a part) and
+// re-matches every board in the project. Used by the upload wizard to match
+// leftover lines before committing.
+func (h *Handler) SetProjectMatch(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		MatchKey string `json:"match_key"`
+		PartID   string `json:"part_id"`
+	}
+	if !respond.Decode(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.MatchKey) == "" {
+		respond.Error(w, http.StatusBadRequest, "match_key is required")
+		return
+	}
+	pid, err := uuid.Parse(strings.TrimSpace(req.PartID))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "part_id must be a valid id")
+		return
+	}
+	if err := h.Projects.UpsertProjectMatch(r.Context(), projectID, req.MatchKey, pid); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not save the match")
+		return
+	}
+	h.rematchProject(r.Context(), projectID)
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusOK, map[string]string{"status": "matched"})
+}
+
 // PreviewBoard parses an upload without committing and returns what was detected
 // (board name, title-block revision, panels, iBOM, renders) so the upload wizard
 // can show a mapping/confirm step before creating anything.
 func (h *Handler) PreviewBoard(w http.ResponseWriter, r *http.Request) {
-	if _, ok := pathUUID(w, r); !ok {
+	projectID, ok := pathUUID(w, r)
+	if !ok {
 		return
 	}
 	if err := r.ParseMultipartForm(16 << 20); err != nil {
@@ -382,11 +425,35 @@ func (h *Handler) PreviewBoard(w http.ResponseWriter, r *http.Request) {
 		revision = kicad.SchematicRevision(data)
 	}
 
+	// Match preview: resolve each line against inventory + project rules so the
+	// wizard can offer to match the leftovers before committing. Unmatched lines
+	// are deduped by match key (only lines that can carry a project rule).
+	matched := 0
+	unmatched := []previewUnmatched{}
+	seen := map[string]bool{}
+	for _, l := range lines {
+		m := models.BOMLine{Value: l.Value, Footprint: l.Footprint, MPN: l.MPN, SupplierSKU: l.SupplierSKU, IPN: l.IPN}
+		if pid, _ := h.resolveMatch(r.Context(), projectID, m); pid != nil {
+			matched++
+			continue
+		}
+		key := matchKey(m)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		unmatched = append(unmatched, previewUnmatched{
+			Key: key, Refs: strings.Join(l.Refs, ", "), Value: l.Value, Footprint: l.Footprint, MPN: l.MPN,
+		})
+	}
+
 	respond.JSON(w, http.StatusOK, map[string]any{
 		"format":       format,
 		"name":         name,
 		"revision":     revision,
 		"line_count":   len(lines),
+		"matched":      matched,
+		"unmatched":    unmatched,
 		"panels":       panels,
 		"panel_copies": panelCopies,
 		"ibom":         ibom,
