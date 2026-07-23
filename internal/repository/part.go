@@ -243,6 +243,25 @@ func (r *PartRepo) GetParameters(ctx context.Context, partID uuid.UUID) ([]model
 	return out, rows.Err()
 }
 
+// ListParameterTemplates returns every known parameter name (+ default units),
+// alphabetical. Feeds the web client's parameter-name typeahead.
+func (r *PartRepo) ListParameterTemplates(ctx context.Context) ([]models.ParameterTemplate, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id, name, units FROM parameter_templates ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.ParameterTemplate{}
+	for rows.Next() {
+		var t models.ParameterTemplate
+		if err := rows.Scan(&t.ID, &t.Name, &t.Units); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // SetParameter upserts a parameter value on a part, creating the parameter
 // template (by name) on first use.
 func (r *PartRepo) SetParameter(ctx context.Context, partID uuid.UUID, name string, units *string, value string) error {
