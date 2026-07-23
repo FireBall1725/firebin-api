@@ -28,6 +28,8 @@ type Board struct {
 	Description    string    `json:"description,omitempty"`
 	SourceFilename string    `json:"source_filename,omitempty"`
 	SourceFormat   string    `json:"source_format"`
+	Kind           string    `json:"kind"`   // board | panel
+	Copies         int       `json:"copies"` // panel = N-up, board = 1
 	Position       int       `json:"position"`
 	Lines          []BOMLine `json:"lines,omitempty"`
 	LineCount      int       `json:"line_count"`
