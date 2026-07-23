@@ -9,21 +9,29 @@ import (
 	"testing"
 )
 
-// A hierarchical project split across two sheets, plus a backup that must be
-// ignored, proves the zip parser merges sheets and skips backups.
-func TestParseZip(t *testing.T) {
-	rootSheet := `(kicad_sch (version 20231120)
+// A project with a root schematic that references one sub-sheet, plus an orphan
+// schematic (a reusable sub-circuit not instantiated in the design) and a
+// backup — both of which must be excluded so parts don't double-count.
+func TestParseZipRootAndOrphan(t *testing.T) {
+	root := `(kicad_sch (version 20231120)
       (symbol (lib_id "Device:R") (in_bom yes) (on_board yes) (dnp no)
         (property "Reference" "R1" (at 0 0 0))
         (property "Value" "10k" (at 0 0 0))
-        (property "Footprint" "Resistor_SMD:R_0603_1608Metric" (at 0 0 0))))`
-	subSheet := `(kicad_sch (version 20231120)
+        (property "Footprint" "Resistor_SMD:R_0603_1608Metric" (at 0 0 0)))
+      (sheet (at 50 50)
+        (property "Sheetname" "power" (at 0 0 0))
+        (property "Sheetfile" "power.kicad_sch" (at 0 0 0))))`
+	sub := `(kicad_sch (version 20231120)
       (symbol (lib_id "Device:C") (in_bom yes) (on_board yes) (dnp no)
         (property "Reference" "C1" (at 0 0 0))
         (property "Value" "100nF" (at 0 0 0))
-        (property "Footprint" "Capacitor_SMD:C_0402_1005Metric" (at 0 0 0))
-        (property "MPN" "CL05B104KO5NNNC" (at 0 0 0))))`
-	junk := `(kicad_sch garbage that should be skipped in backups)`
+        (property "Footprint" "Capacitor_SMD:C_0402_1005Metric" (at 0 0 0))))`
+	// Orphan sub-circuit sitting in the project folder but not referenced.
+	orphan := `(kicad_sch (version 20231120)
+      (symbol (lib_id "Device:C") (in_bom yes) (on_board yes) (dnp no)
+        (property "Reference" "C1" (at 0 0 0))
+        (property "Value" "100nF" (at 0 0 0))
+        (property "Footprint" "Capacitor_SMD:C_0402_1005Metric" (at 0 0 0))))`
 
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -36,9 +44,11 @@ func TestParseZip(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("widget/widget.kicad_sch", rootSheet)
-	write("widget/power.kicad_sch", subSheet)
-	write("widget/widget-backups/widget.kicad_sch", junk)
+	write("widget/widget.kicad_pro", `{"meta":{}}`)
+	write("widget/widget.kicad_sch", root)
+	write("widget/power.kicad_sch", sub)
+	write("widget/misc_reusable_block.kicad_sch", orphan)
+	write("widget/widget-backups/widget.kicad_sch", "(kicad_sch junk)")
 	write("widget/widget.kicad_pcb", "(kicad_pcb)")
 	if err := zw.Close(); err != nil {
 		t.Fatal(err)
@@ -48,20 +58,13 @@ func TestParseZip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse zip: %v", err)
 	}
+	// Root R1 + referenced sub C1 = 2 lines. Orphan C1 must NOT inflate the cap.
 	if len(lines) != 2 {
-		t.Fatalf("want 2 merged BOM lines, got %d: %+v", len(lines), lines)
+		t.Fatalf("want 2 lines (root + referenced sub, orphan excluded), got %d: %+v", len(lines), lines)
 	}
-	// Both sheets' parts must appear.
-	var haveR, haveC bool
 	for _, l := range lines {
-		if l.Value == "10k" {
-			haveR = true
+		if l.Value == "100nF" && l.Quantity != 1 {
+			t.Errorf("cap qty = %d, want 1 (orphan double-count leaked in)", l.Quantity)
 		}
-		if l.Value == "100nF" && l.MPN == "CL05B104KO5NNNC" {
-			haveC = true
-		}
-	}
-	if !haveR || !haveC {
-		t.Errorf("merged BOM missing a sheet: haveR=%v haveC=%v", haveR, haveC)
 	}
 }
