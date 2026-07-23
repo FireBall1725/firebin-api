@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -192,6 +193,25 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 				}
 				rec := &models.ProjectAsset{ProjectID: projectID, BoardID: &board.ID, Name: a.Name, Kind: a.Kind, Mime: a.Mime}
 				_ = h.Projects.CreateAsset(r.Context(), rec, a.Content)
+			}
+		}
+	}
+
+	// Generate a board render from the .kicad_pcb (fallback for the board-layout
+	// tab when there's no interactive BOM). Uses the zip's root PCB, or the
+	// uploaded .kicad_pcb directly.
+	var pcbBytes []byte
+	switch format {
+	case "kicad_zip":
+		pcbBytes = kicad.RootPCB(data)
+	case "kicad_pcb":
+		pcbBytes = data
+	}
+	if pcbBytes != nil {
+		if pcb, err := kicad.GeneratePcbData(pcbBytes); err == nil {
+			if js, err := json.Marshal(pcb); err == nil {
+				rec := &models.ProjectAsset{ProjectID: projectID, BoardID: &board.ID, Name: board.Name + ".pcbrender.json", Kind: "pcbrender", Mime: "application/json"}
+				_ = h.Projects.CreateAsset(r.Context(), rec, js)
 			}
 		}
 	}
