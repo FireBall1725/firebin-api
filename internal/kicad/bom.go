@@ -60,6 +60,69 @@ func componentsFromSchematic(data []byte) ([]Component, error) {
 	return comps, nil
 }
 
+// ParsePCB reads a .kicad_pcb and returns a grouped BOM from its placed
+// footprints. The schematic is the richer BOM source, but a bare PCB carries
+// each footprint's reference, value, and footprint name, which is enough for a
+// usable BOM. Footprints flagged exclude_from_bom / dnp / board_only and power
+// symbols are skipped.
+func ParsePCB(data []byte) ([]BOMLine, error) {
+	root, err := parseSexpr(data)
+	if err != nil {
+		return nil, err
+	}
+	var comps []Component
+	for _, child := range root.Children {
+		if child.head() != "footprint" && child.head() != "module" {
+			continue
+		}
+		if c, ok := componentFromPCBFootprint(child); ok {
+			comps = append(comps, c)
+		}
+	}
+	return GroupComponents(comps), nil
+}
+
+func componentFromPCBFootprint(fp *node) (Component, bool) {
+	var c Component
+	c.Footprint = fp.atom(1) // "Lib:Name"
+	for _, ch := range fp.Children {
+		switch ch.head() {
+		case "attr":
+			for _, a := range ch.Children[1:] {
+				switch strings.ToLower(a.Value) {
+				case "exclude_from_bom", "dnp", "board_only":
+					return c, false
+				}
+			}
+		case "property", "fp_text":
+			// fp_text uses (fp_text reference "R1" …); property uses (property "Reference" "R1" …)
+			key := ch.atom(1)
+			val := ch.atom(2)
+			switch strings.ToLower(key) {
+			case "reference":
+				c.Reference = val
+			case "value":
+				c.Value = val
+			case "mpn", "manufacturer part number", "manufacturer_part_number", "part number":
+				if c.MPN == "" {
+					c.MPN = val
+				}
+			case "manufacturer", "mfr", "mfg":
+				if c.Manufacturer == "" {
+					c.Manufacturer = val
+				}
+			}
+		}
+	}
+	if strings.HasPrefix(c.Reference, "#") {
+		return c, false
+	}
+	if c.Reference == "" && c.Value == "" {
+		return c, false
+	}
+	return c, true
+}
+
 // componentFromSymbol extracts a Component, returning ok=false for symbols that
 // don't belong in the BOM (power, no-connect, in_bom=no, dnp=yes).
 func componentFromSymbol(sym *node) (Component, bool) {
