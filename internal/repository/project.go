@@ -298,6 +298,73 @@ func (r *ProjectRepo) ReplaceBOMLines(ctx context.Context, boardID uuid.UUID, li
 	return tx.Commit(ctx)
 }
 
+// ── Project match memory ─────────────────────────────────────────────────────
+
+// UpsertProjectMatch records that a BOM identity (match_key) maps to a part for
+// this project, so the choice propagates across all its boards.
+func (r *ProjectRepo) UpsertProjectMatch(ctx context.Context, projectID uuid.UUID, key string, partID uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO project_matches (project_id, match_key, part_id) VALUES ($1, $2, $3)
+		ON CONFLICT (project_id, match_key) DO UPDATE SET part_id = EXCLUDED.part_id`,
+		projectID, key, partID)
+	return err
+}
+
+func (r *ProjectRepo) DeleteProjectMatch(ctx context.Context, projectID uuid.UUID, key string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM project_matches WHERE project_id = $1 AND match_key = $2`, projectID, key)
+	return err
+}
+
+// ProjectMatch resolves a match key to a part within a project.
+func (r *ProjectRepo) ProjectMatch(ctx context.Context, projectID uuid.UUID, key string) (uuid.UUID, bool, error) {
+	var id uuid.UUID
+	err := r.pool.QueryRow(ctx, `SELECT part_id FROM project_matches WHERE project_id = $1 AND match_key = $2`, projectID, key).Scan(&id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, false, nil
+		}
+		return uuid.Nil, false, err
+	}
+	return id, true, nil
+}
+
+// ProjectIDForBoard returns the project a board belongs to.
+func (r *ProjectRepo) ProjectIDForBoard(ctx context.Context, boardID uuid.UUID) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := r.pool.QueryRow(ctx, `SELECT project_id FROM project_boards WHERE id = $1`, boardID).Scan(&id)
+	return id, err
+}
+
+// ProjectBoardIDs returns every board id in a project (for re-matching).
+func (r *ProjectRepo) ProjectBoardIDs(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id FROM project_boards WHERE project_id = $1`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// LinesForBoard returns a board's BOM lines (for re-matching); alias of the
+// internal list used by GetBoard.
+func (r *ProjectRepo) LinesForBoard(ctx context.Context, boardID uuid.UUID) ([]models.BOMLine, error) {
+	return r.listLines(ctx, boardID)
+}
+
+// SetLineMatch updates only a line's resolved part + match kind.
+func (r *ProjectRepo) SetLineMatch(ctx context.Context, lineID uuid.UUID, partID *uuid.UUID, kind string) error {
+	_, err := r.pool.Exec(ctx, `UPDATE board_bom_lines SET part_id = $2, match_kind = $3 WHERE id = $1`, lineID, partID, kind)
+	return err
+}
+
 // ── Assets (renderable files: iBOM, images) ──────────────────────────────────
 
 func (r *ProjectRepo) CreateAsset(ctx context.Context, a *models.ProjectAsset, content []byte) error {
