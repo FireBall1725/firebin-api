@@ -86,25 +86,36 @@ func GeneratePcbData(data []byte) (*PcbData, error) {
 		maxx, maxy = math.Max(maxx, x), math.Max(maxy, y)
 	}
 
+	var identity [3]float64
 	for _, ch := range root.Children {
 		switch ch.head() {
-		case "gr_line", "gr_arc", "gr_circle", "gr_poly", "gr_rect":
-			if layerOf(ch) != "Edge.Cuts" {
-				continue
-			}
-			for _, e := range edgesFrom(ch) {
-				pcb.Edges = append(pcb.Edges, e)
-				if s, ok := e.(segEdge); ok {
-					acc(s.Start[0], s.Start[1])
-					acc(s.End[0], s.End[1])
+		case "gr_line", "gr_arc", "gr_circle", "gr_poly", "gr_rect", "gr_text":
+			layer := layerOf(ch)
+			switch {
+			case layer == "Edge.Cuts":
+				for _, e := range edgesFrom(ch) {
+					pcb.Edges = append(pcb.Edges, e)
+					if s, ok := e.(segEdge); ok {
+						acc(s.Start[0], s.Start[1])
+						acc(s.End[0], s.End[1])
+					}
+					if c, ok := e.(circleEdge); ok {
+						acc(c.Start[0]-c.Radius, c.Start[1]-c.Radius)
+						acc(c.Start[0]+c.Radius, c.Start[1]+c.Radius)
+					}
 				}
-				if c, ok := e.(circleEdge); ok {
-					acc(c.Start[0]-c.Radius, c.Start[1]-c.Radius)
-					acc(c.Start[0]+c.Radius, c.Start[1]+c.Radius)
-				}
+			case strings.HasPrefix(layer, "F.SilkS"):
+				pcb.Drawings.Silkscreen.F = append(pcb.Drawings.Silkscreen.F, silkElements(ch, identity)...)
+			case strings.HasPrefix(layer, "B.SilkS"):
+				pcb.Drawings.Silkscreen.B = append(pcb.Drawings.Silkscreen.B, silkElements(ch, identity)...)
 			}
 		case "footprint", "module":
-			if fp, ok := footprintRender(ch); ok {
+			// Silk always renders (logos/graphics live in excluded footprints);
+			// only real components join the BOM footprint list.
+			fp, sf, sb, ok := footprintRender(ch)
+			pcb.Drawings.Silkscreen.F = append(pcb.Drawings.Silkscreen.F, sf...)
+			pcb.Drawings.Silkscreen.B = append(pcb.Drawings.Silkscreen.B, sb...)
+			if ok {
 				pcb.Footprints = append(pcb.Footprints, fp)
 				for _, p := range fp.Pads {
 					acc(p.Pos[0], p.Pos[1])
@@ -224,7 +235,7 @@ func circumcenter(a, b, c [2]float64) (float64, float64, bool) {
 
 // ── Footprints ───────────────────────────────────────────────────────────────
 
-func footprintRender(fp *node) (PcbFootprint, bool) {
+func footprintRender(fp *node) (PcbFootprint, []any, []any, bool) {
 	var out PcbFootprint
 	out.Layer = "F"
 	if l := layerOf(fp); strings.HasPrefix(l, "B") {
@@ -235,6 +246,14 @@ func footprintRender(fp *node) (PcbFootprint, bool) {
 	out.Bbox.Angle = fat[2]
 
 	excluded := false
+	silkF, silkB := []any{}, []any{}
+	addSilk := func(layer string, els ...any) {
+		if strings.HasPrefix(layer, "F.SilkS") {
+			silkF = append(silkF, els...)
+		} else if strings.HasPrefix(layer, "B.SilkS") {
+			silkB = append(silkB, els...)
+		}
+	}
 	for _, ch := range fp.Children {
 		switch ch.head() {
 		case "attr":
@@ -245,13 +264,25 @@ func footprintRender(fp *node) (PcbFootprint, bool) {
 				}
 			}
 		case "property":
+			// Only the reference designator is a real silk label; other
+			// properties (Value, custom KiLib_* metadata) sit on silk layers too
+			// but shouldn't be drawn.
 			if strings.EqualFold(ch.atom(1), "reference") {
 				out.Ref = ch.atom(2)
+				if l := layerOf(ch); strings.Contains(l, "SilkS") && ch.atom(2) != "" && !hidden(ch) {
+					addSilk(l, textElement(ch, fat, ch.atom(2)))
+				}
+			}
+		case "fp_line", "fp_arc", "fp_circle", "fp_poly", "fp_rect":
+			addSilk(layerOf(ch), silkElements(ch, fat)...)
+		case "fp_text":
+			if !hidden(ch) {
+				addSilk(layerOf(ch), silkElements(ch, fat)...)
 			}
 		}
 	}
 	if excluded || strings.HasPrefix(out.Ref, "#") {
-		return out, false
+		return out, silkF, silkB, false // keep the silk (logos/graphics), drop from BOM
 	}
 
 	// Pads → absolute geometry + a local-frame bbox for highlighting.
@@ -271,7 +302,118 @@ func footprintRender(fp *node) (PcbFootprint, bool) {
 	}
 	out.Bbox.Relpos = [2]float64{lminx, lminy}
 	out.Bbox.Size = [2]float64{lmaxx - lminx, lmaxy - lminy}
-	return out, true
+	return out, silkF, silkB, true
+}
+
+// xform maps a point in a footprint's local (unrotated) frame to absolute board
+// coordinates. Identity (fat all zero) for board-level graphics.
+func xform(p [2]float64, fat [3]float64) [2]float64 {
+	rad := -fat[2] * math.Pi / 180
+	cos, sin := math.Cos(rad), math.Sin(rad)
+	return [2]float64{fat[0] + p[0]*cos - p[1]*sin, fat[1] + p[0]*sin + p[1]*cos}
+}
+
+// silkElements converts one graphic/text node to renderer drawings, in absolute
+// coordinates via the footprint transform.
+func silkElements(n *node, fat [3]float64) []any {
+	w := strokeWidth(n)
+	switch n.head() {
+	case "fp_line", "gr_line":
+		return []any{segEdge{Type: "segment", Start: xform(xy(n, "start"), fat), End: xform(xy(n, "end"), fat), Width: w}}
+	case "fp_rect", "gr_rect":
+		a := xy(n, "start")
+		b := xy(n, "end")
+		corners := [][2]float64{{a[0], a[1]}, {b[0], a[1]}, {b[0], b[1]}, {a[0], b[1]}}
+		out := []any{}
+		for i := 0; i < 4; i++ {
+			out = append(out, segEdge{Type: "segment", Start: xform(corners[i], fat), End: xform(corners[(i+1)%4], fat), Width: w})
+		}
+		return out
+	case "fp_circle", "gr_circle":
+		c := xform(xy(n, "center"), fat)
+		e := xform(xy(n, "end"), fat)
+		return []any{circleEdge{Type: "circle", Start: c, Radius: dist(c, e), Width: w}}
+	case "fp_arc", "gr_arc":
+		return arcSegs(xform(xy(n, "start"), fat), xform(xy(n, "mid"), fat), xform(xy(n, "end"), fat), w)
+	case "fp_poly", "gr_poly":
+		pts := ptsFrom(n)
+		poly := make([][2]float64, len(pts))
+		for i, p := range pts {
+			poly[i] = xform(p, fat)
+		}
+		return []any{map[string]any{"type": "polygon", "pos": []float64{0, 0}, "angle": 0.0, "polygons": [][][2]float64{poly}}}
+	case "fp_text":
+		// (fp_text reference|value|user "text" …) — atom(1)=kind, atom(2)=text.
+		return []any{textElement(n, fat, n.atom(2))}
+	case "gr_text":
+		// (gr_text "text" …) — atom(1)=text.
+		return []any{textElement(n, fat, n.atom(1))}
+	}
+	return nil
+}
+
+// textElement builds a canvas-rendered text drawing at absolute coordinates.
+func textElement(n *node, fat [3]float64, text string) any {
+	at := atNode(n)
+	pos := xform([2]float64{at[0], at[1]}, fat)
+	size := 1.0
+	thick := 0.1
+	if fnt := effectsFont(n); fnt != nil {
+		if s := fnt.child("size"); s != nil {
+			size = atof(s.atom(2))
+		}
+		if t := fnt.child("thickness"); t != nil {
+			thick = atof(t.atom(1))
+		}
+	}
+	hj, vj := "center", "center"
+	for _, j := range justifyOf(n) {
+		switch j {
+		case "left", "right":
+			hj = j
+		case "top", "bottom":
+			vj = j
+		}
+	}
+	return map[string]any{
+		"type": "text", "text": text,
+		"pos": []float64{pos[0], pos[1]}, "angle": at[2],
+		"size": size, "thickness": thick, "justify": hj, "vjustify": vj,
+	}
+}
+
+// hidden reports whether a text node is marked hidden ((hide yes) or a bare
+// "hide" atom in older files).
+func hidden(n *node) bool {
+	if h := n.child("hide"); h != nil {
+		return !strings.EqualFold(h.atom(1), "no")
+	}
+	for _, c := range n.Children {
+		if !c.IsList && c.Value == "hide" {
+			return true
+		}
+	}
+	return false
+}
+
+func effectsFont(n *node) *node {
+	if e := n.child("effects"); e != nil {
+		return e.child("font")
+	}
+	return nil
+}
+
+func justifyOf(n *node) []string {
+	if e := n.child("effects"); e != nil {
+		if j := e.child("justify"); j != nil {
+			var out []string
+			for _, a := range j.Children[1:] {
+				out = append(out, strings.ToLower(a.Value))
+			}
+			return out
+		}
+	}
+	return nil
 }
 
 // padRender returns the pad in absolute coordinates plus its local-frame
