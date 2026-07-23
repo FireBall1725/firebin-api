@@ -213,6 +213,67 @@ func (r *ProjectRepo) listLines(ctx context.Context, boardID uuid.UUID) ([]model
 	return out, rows.Err()
 }
 
+// CreateBOMLine appends one manually-entered BOM line to a board.
+func (r *ProjectRepo) CreateBOMLine(ctx context.Context, l *models.BOMLine) error {
+	return r.pool.QueryRow(ctx, `
+		INSERT INTO board_bom_lines
+		  (board_id, refs, quantity, value, footprint, mpn, manufacturer, description, part_id, match_kind, position)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+		        COALESCE((SELECT MAX(position)+1 FROM board_bom_lines WHERE board_id = $1), 0))
+		RETURNING id, position`,
+		l.BoardID, l.Refs, l.Quantity, l.Value, l.Footprint, l.MPN, l.Manufacturer, l.Description, l.PartID, l.MatchKind).
+		Scan(&l.ID, &l.Position)
+}
+
+// UpdateBOMLine edits one BOM line's fields (and its resolved match).
+func (r *ProjectRepo) UpdateBOMLine(ctx context.Context, l *models.BOMLine) (uuid.UUID, error) {
+	var boardID uuid.UUID
+	err := r.pool.QueryRow(ctx, `
+		UPDATE board_bom_lines
+		SET refs=$2, quantity=$3, value=$4, footprint=$5, mpn=$6, manufacturer=$7, description=$8, part_id=$9, match_kind=$10
+		WHERE id=$1 RETURNING board_id`,
+		l.ID, l.Refs, l.Quantity, l.Value, l.Footprint, l.MPN, l.Manufacturer, l.Description, l.PartID, l.MatchKind).
+		Scan(&boardID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, nil
+		}
+		return uuid.Nil, err
+	}
+	return boardID, nil
+}
+
+// GetBOMLine loads one line (with resolved part name) for returning after edits.
+func (r *ProjectRepo) GetBOMLine(ctx context.Context, id uuid.UUID) (*models.BOMLine, error) {
+	var l models.BOMLine
+	err := r.pool.QueryRow(ctx, `
+		SELECT l.id, l.board_id, l.refs, l.quantity, l.value, l.footprint, l.mpn,
+		       l.manufacturer, l.description, l.part_id, COALESCE(p.name, ''), l.match_kind, l.position
+		FROM board_bom_lines l LEFT JOIN parts p ON p.id = l.part_id
+		WHERE l.id = $1`, id).
+		Scan(&l.ID, &l.BoardID, &l.Refs, &l.Quantity, &l.Value, &l.Footprint, &l.MPN,
+			&l.Manufacturer, &l.Description, &l.PartID, &l.PartName, &l.MatchKind, &l.Position)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &l, nil
+}
+
+func (r *ProjectRepo) DeleteBOMLine(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	var boardID uuid.UUID
+	err := r.pool.QueryRow(ctx, `DELETE FROM board_bom_lines WHERE id = $1 RETURNING board_id`, id).Scan(&boardID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, nil
+		}
+		return uuid.Nil, err
+	}
+	return boardID, nil
+}
+
 // ReplaceBOMLines swaps a board's BOM for a freshly-parsed set, in a transaction.
 func (r *ProjectRepo) ReplaceBOMLines(ctx context.Context, boardID uuid.UUID, lines []models.BOMLine) error {
 	tx, err := r.pool.Begin(ctx)
