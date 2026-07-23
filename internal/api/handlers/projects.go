@@ -176,7 +176,7 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	matched := h.matchLines(r, lines)
+	matched := h.matchLines(r, projectID, lines)
 	if err := h.Projects.ReplaceBOMLines(r.Context(), board.ID, matched); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not store BOM")
 		return
@@ -427,13 +427,32 @@ func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+// matchKey is a BOM line's cross-board identity for project match memory: its
+// MPN when present, else value + footprint. Empty when the line has neither.
+func matchKey(l models.BOMLine) string {
+	if m := strings.TrimSpace(l.MPN); m != "" {
+		return "mpn:" + strings.ToLower(m)
+	}
+	v := strings.TrimSpace(l.Value)
+	if v == "" {
+		return ""
+	}
+	return "vf:" + strings.ToLower(v) + "|" + strings.ToLower(strings.TrimSpace(l.Footprint))
+}
+
 // resolveMatch resolves a BOM line to an inventory part in priority order:
-// FireBin PN (IPN) → MPN → supplier SKU → value+footprint. Returns (nil, "none")
-// when nothing matches.
-func (h *Handler) resolveMatch(ctx context.Context, l models.BOMLine) (*uuid.UUID, string) {
+// FireBin PN → project match rule → MPN → supplier SKU → value+footprint.
+// The project rule captures manual choices so they apply across every board in
+// the project. Returns (nil, "none") when nothing matches.
+func (h *Handler) resolveMatch(ctx context.Context, projectID uuid.UUID, l models.BOMLine) (*uuid.UUID, string) {
 	if l.IPN != "" {
 		if id, _, found, _ := h.Catalog.FindPartByIPN(ctx, l.IPN); found {
 			return &id, "fbpn"
+		}
+	}
+	if key := matchKey(l); key != "" {
+		if id, found, _ := h.Projects.ProjectMatch(ctx, projectID, key); found {
+			return &id, "project"
 		}
 	}
 	if l.MPN != "" {
@@ -455,7 +474,7 @@ func (h *Handler) resolveMatch(ctx context.Context, l models.BOMLine) (*uuid.UUI
 }
 
 // matchLines resolves each parsed BOM line to an inventory part.
-func (h *Handler) matchLines(r *http.Request, lines []kicad.BOMLine) []models.BOMLine {
+func (h *Handler) matchLines(r *http.Request, projectID uuid.UUID, lines []kicad.BOMLine) []models.BOMLine {
 	ctx := r.Context()
 	out := make([]models.BOMLine, 0, len(lines))
 	for _, l := range lines {
@@ -470,10 +489,33 @@ func (h *Handler) matchLines(r *http.Request, lines []kicad.BOMLine) []models.BO
 			IPN:          l.IPN,
 			Description:  l.Description,
 		}
-		m.PartID, m.MatchKind = h.resolveMatch(ctx, m)
+		m.PartID, m.MatchKind = h.resolveMatch(ctx, projectID, m)
 		out = append(out, m)
 	}
 	return out
+}
+
+// rematchProject re-resolves every BOM line across a project's boards, so a
+// changed project match rule propagates everywhere.
+func (h *Handler) rematchProject(ctx context.Context, projectID uuid.UUID) {
+	boardIDs, err := h.Projects.ProjectBoardIDs(ctx, projectID)
+	if err != nil {
+		return
+	}
+	for _, bid := range boardIDs {
+		lines, err := h.Projects.LinesForBoard(ctx, bid)
+		if err != nil {
+			continue
+		}
+		for _, l := range lines {
+			pid, kind := h.resolveMatch(ctx, projectID, l)
+			same := kind == l.MatchKind &&
+				((pid == nil && l.PartID == nil) || (pid != nil && l.PartID != nil && *pid == *l.PartID))
+			if !same {
+				_ = h.Projects.SetLineMatch(ctx, l.ID, pid, kind)
+			}
+		}
+	}
 }
 
 // CreateBlankBoard makes an empty board (no upload) to build a BOM by hand.
@@ -606,21 +648,36 @@ func (req bomLineRequest) toLine() models.BOMLine {
 	}
 }
 
-// applyMatch sets a line's part match: an explicit part_id override pins the line
-// (match_kind "manual", or "none" to clear); otherwise it auto-resolves.
-func (h *Handler) applyMatch(ctx context.Context, l *models.BOMLine, override *string) {
+// applyMatch resolves a line's match. An explicit part_id override pins the line
+// via a project match rule, so the choice applies to every board in the project;
+// "none" clears that rule. Returns true when a project rule was written or
+// removed, so the caller re-matches the whole project. A line with no match key
+// (no MPN/value) falls back to a per-line manual pin.
+func (h *Handler) applyMatch(ctx context.Context, projectID uuid.UUID, l *models.BOMLine, override *string) (ruleChanged bool) {
 	if override != nil {
 		v := strings.TrimSpace(*override)
+		key := matchKey(*l)
 		if v == "" || v == "none" {
-			l.PartID, l.MatchKind = nil, "none"
+			if key != "" {
+				_ = h.Projects.DeleteProjectMatch(ctx, projectID, key)
+				ruleChanged = true
+			}
+			l.PartID, l.MatchKind = h.resolveMatch(ctx, projectID, *l)
 			return
 		}
 		if id, err := uuid.Parse(v); err == nil {
-			l.PartID, l.MatchKind = &id, "manual"
+			if key != "" {
+				_ = h.Projects.UpsertProjectMatch(ctx, projectID, key, id)
+				l.PartID, l.MatchKind = &id, "project"
+				ruleChanged = true
+			} else {
+				l.PartID, l.MatchKind = &id, "manual"
+			}
 			return
 		}
 	}
-	l.PartID, l.MatchKind = h.resolveMatch(ctx, *l)
+	l.PartID, l.MatchKind = h.resolveMatch(ctx, projectID, *l)
+	return
 }
 
 // AddBOMLine appends a manually-entered line to a board's BOM (auto-matched).
@@ -633,15 +690,23 @@ func (h *Handler) AddBOMLine(w http.ResponseWriter, r *http.Request) {
 	if !respond.Decode(w, r, &req) {
 		return
 	}
+	projectID, err := h.Projects.ProjectIDForBoard(r.Context(), boardID)
+	if err != nil {
+		respond.Error(w, http.StatusNotFound, "board not found")
+		return
+	}
 	l := req.toLine()
 	l.BoardID = boardID
 	if l.Quantity < 1 {
 		l.Quantity = 1
 	}
-	h.applyMatch(r.Context(), &l, req.PartID)
+	ruleChanged := h.applyMatch(r.Context(), projectID, &l, req.PartID)
 	if err := h.Projects.CreateBOMLine(r.Context(), &l); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not add line")
 		return
+	}
+	if ruleChanged {
+		h.rematchProject(r.Context(), projectID)
 	}
 	full, _ := h.Projects.GetBOMLine(r.Context(), l.ID)
 	h.Bus.Publish("projects")
@@ -658,20 +723,28 @@ func (h *Handler) UpdateBOMLine(w http.ResponseWriter, r *http.Request) {
 	if !respond.Decode(w, r, &req) {
 		return
 	}
+	existing, err := h.Projects.GetBOMLine(r.Context(), id)
+	if err != nil || existing == nil {
+		respond.Error(w, http.StatusNotFound, "line not found")
+		return
+	}
+	projectID, err := h.Projects.ProjectIDForBoard(r.Context(), existing.BoardID)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not resolve project")
+		return
+	}
 	l := req.toLine()
 	l.ID = id
 	if l.Quantity < 1 {
 		l.Quantity = 1
 	}
-	h.applyMatch(r.Context(), &l, req.PartID)
-	boardID, err := h.Projects.UpdateBOMLine(r.Context(), &l)
-	if err != nil {
+	ruleChanged := h.applyMatch(r.Context(), projectID, &l, req.PartID)
+	if _, err := h.Projects.UpdateBOMLine(r.Context(), &l); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not update line")
 		return
 	}
-	if boardID == uuid.Nil {
-		respond.Error(w, http.StatusNotFound, "line not found")
-		return
+	if ruleChanged {
+		h.rematchProject(r.Context(), projectID)
 	}
 	full, _ := h.Projects.GetBOMLine(r.Context(), id)
 	h.Bus.Publish("projects")
