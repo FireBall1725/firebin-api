@@ -70,6 +70,36 @@ func componentsFromSchematic(data []byte) ([]Component, error) {
 // usable BOM. Footprints flagged exclude_from_bom / dnp / board_only and power
 // symbols are skipped.
 func ParsePCB(data []byte) ([]BOMLine, error) {
+	comps, err := componentsFromPCB(data)
+	if err != nil {
+		return nil, err
+	}
+	return GroupComponents(comps), nil
+}
+
+// ParsePanelBoardBOM returns the single-board BOM of a panelized .kicad_pcb. A
+// panel repeats every reference designator once per copy, so deduplicating
+// components by reference recovers exactly one board's parts (the panel frame's
+// KiKit_* parts are already skipped by componentFromPCBFootprint's `#`/attr
+// filtering, and carry no BOM refs). Use with DetectPanelPCB's copy count.
+func ParsePanelBoardBOM(data []byte) ([]BOMLine, error) {
+	comps, err := componentsFromPCB(data)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	uniq := make([]Component, 0, len(comps))
+	for _, c := range comps {
+		if c.Reference == "" || seen[c.Reference] {
+			continue
+		}
+		seen[c.Reference] = true
+		uniq = append(uniq, c)
+	}
+	return GroupComponents(uniq), nil
+}
+
+func componentsFromPCB(data []byte) ([]Component, error) {
 	root, err := parseSexpr(data)
 	if err != nil {
 		return nil, err
@@ -83,7 +113,7 @@ func ParsePCB(data []byte) ([]BOMLine, error) {
 			comps = append(comps, c)
 		}
 	}
-	return GroupComponents(comps), nil
+	return comps, nil
 }
 
 func componentFromPCBFootprint(fp *node) (Component, bool) {

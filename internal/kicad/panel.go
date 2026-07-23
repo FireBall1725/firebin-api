@@ -7,8 +7,12 @@ import (
 	"archive/zip"
 	"bytes"
 	"path"
+	"regexp"
 	"strings"
 )
+
+// refPropRe matches a footprint's reference-designator property in a .kicad_pcb.
+var refPropRe = regexp.MustCompile(`\(property "Reference" "([^"]+)"`)
 
 // Panel is a panelized copy of the design found in a project zip: the same board
 // arrayed Copies-up (for fabrication), with no schematic of its own.
@@ -103,6 +107,42 @@ func DetectPanels(data []byte) ([]Panel, error) {
 		panels = append(panels, Panel{Name: name, Copies: copies})
 	}
 	return panels, nil
+}
+
+// DetectPanelPCB decides whether a standalone .kicad_pcb is itself a panel (as
+// opposed to a 1-up board) and how many copies it holds. A single board never
+// repeats a reference designator, so on a panel every board refdes recurs once
+// per copy; the mode of those per-ref counts is the copy count. KiKit frame
+// parts (refs prefixed "KiKit_") are excluded. Returns (copies>=2, true) for a
+// panel, else (1, false).
+func DetectPanelPCB(data []byte) (int, bool) {
+	counts := map[string]int{}
+	for _, m := range refPropRe.FindAllStringSubmatch(string(data), -1) {
+		ref := m[1]
+		if strings.HasPrefix(ref, "KiKit") {
+			continue
+		}
+		counts[ref]++
+	}
+	if len(counts) == 0 {
+		return 1, false
+	}
+	// Mode of the per-ref occurrence counts. On a clean KiKit panel every board
+	// ref occurs exactly `copies` times, so the mode is unambiguous.
+	freq := map[int]int{}
+	for _, c := range counts {
+		freq[c]++
+	}
+	mode, best := 1, 0
+	for count, n := range freq {
+		if n > best || (n == best && count > mode) {
+			mode, best = count, n
+		}
+	}
+	if mode < 2 {
+		return 1, false
+	}
+	return mode, true
 }
 
 // footprintCount counts `(footprint …)` entries in a .kicad_pcb — one per placed

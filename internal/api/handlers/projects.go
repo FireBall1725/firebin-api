@@ -148,12 +148,28 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	keepRenders := r.FormValue("keep_renders") != "false"
 	attachIbom := r.FormValue("attach_ibom") != "false"
 
+	// A standalone .kicad_pcb can itself be a panel (uploaded directly rather
+	// than detected inside a project zip). Mark it kind=panel with an N-up copies
+	// multiplier and store the single-board BOM (deduplicated by reference), so
+	// the copies multiplier gives the panel total without double-counting.
+	kind, copies := "", 0
+	if format == "kicad_pcb" {
+		if c, isPanel := kicad.DetectPanelPCB(data); isPanel {
+			kind, copies = "panel", c
+			if perBoard, err := kicad.ParsePanelBoardBOM(data); err == nil {
+				lines = perBoard
+			}
+		}
+	}
+
 	board := &models.Board{
 		ProjectID:      projectID,
 		Name:           name,
 		Revision:       revision,
 		SourceFilename: filename,
 		SourceFormat:   format,
+		Kind:           kind,
+		Copies:         copies,
 	}
 	if err := h.Projects.CreateBoard(r.Context(), board); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not create board")
@@ -265,8 +281,13 @@ func (h *Handler) PreviewBoard(w http.ResponseWriter, r *http.Request) {
 	panels := []previewPanel{}
 	renders := []string{}
 	ibom := ""
+	panelCopies := 0 // >0 when the uploaded board is itself an N-up panel
 
 	switch format {
+	case "kicad_pcb":
+		if c, isPanel := kicad.DetectPanelPCB(data); isPanel {
+			panelCopies = c
+		}
 	case "kicad_zip":
 		if n, rev := kicad.ProjectInfo(data); n != "" {
 			name = n
@@ -291,13 +312,14 @@ func (h *Handler) PreviewBoard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond.JSON(w, http.StatusOK, map[string]any{
-		"format":     format,
-		"name":       name,
-		"revision":   revision,
-		"line_count": len(lines),
-		"panels":     panels,
-		"ibom":       ibom,
-		"renders":    renders,
+		"format":       format,
+		"name":         name,
+		"revision":     revision,
+		"line_count":   len(lines),
+		"panels":       panels,
+		"panel_copies": panelCopies,
+		"ibom":         ibom,
+		"renders":      renders,
 	})
 }
 
