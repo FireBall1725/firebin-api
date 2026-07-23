@@ -26,6 +26,7 @@ type Board struct {
 	ProjectID      uuid.UUID `json:"project_id"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description,omitempty"`
+	Revision       string    `json:"revision,omitempty"`
 	SourceFilename string    `json:"source_filename,omitempty"`
 	SourceFormat   string    `json:"source_format"`
 	Kind           string    `json:"kind"`   // board | panel
