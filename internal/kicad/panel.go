@@ -19,6 +19,7 @@ var refPropRe = regexp.MustCompile(`\(property "Reference" "([^"]+)"`)
 type Panel struct {
 	Name   string
 	Copies int
+	PCB    []byte // the panel's .kicad_pcb, for generating a board render
 }
 
 // DetectPanels finds panel PCBs in a project zip and estimates how many copies
@@ -104,7 +105,7 @@ func DetectPanels(data []byte) ([]Panel, error) {
 			copies = 1
 		}
 		name := strings.TrimSuffix(path.Base(pk), path.Ext(path.Base(pk)))
-		panels = append(panels, Panel{Name: name, Copies: copies})
+		panels = append(panels, Panel{Name: name, Copies: copies, PCB: b})
 	}
 	return panels, nil
 }
