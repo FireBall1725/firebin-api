@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -548,9 +549,14 @@ func parseBOM(filename string, data []byte) ([]kicad.BOMLine, string, error) {
 	case ".kicad_sch":
 		l, err := kicad.ParseSchematic(data)
 		return l, "kicad_sch", err
+	case ".kicad_pcb":
+		l, err := kicad.ParsePCB(data)
+		return l, "kicad_pcb", err
 	case ".csv", ".tsv":
 		l, err := kicad.ParseBOMCSV(data)
 		return l, "bom_csv", err
+	case ".html", ".htm":
+		return nil, "", errors.New("a standalone interactive BOM (.html) isn't a BOM source — upload the zipped KiCad project so it attaches to the board")
 	}
 	// Unknown extension: sniff by magic/content.
 	if kicad.IsZip(data) {
@@ -561,9 +567,13 @@ func parseBOM(filename string, data []byte) ([]kicad.BOMLine, string, error) {
 	if len(head) > 64 {
 		head = head[:64]
 	}
-	if strings.Contains(string(head), "kicad_sch") {
+	if strings.Contains(string(head), "(kicad_sch") {
 		l, err := kicad.ParseSchematic(data)
 		return l, "kicad_sch", err
+	}
+	if strings.Contains(string(head), "(kicad_pcb") {
+		l, err := kicad.ParsePCB(data)
+		return l, "kicad_pcb", err
 	}
 	l, err := kicad.ParseBOMCSV(data)
 	return l, "bom_csv", err
