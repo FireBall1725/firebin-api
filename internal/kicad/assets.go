@@ -78,15 +78,14 @@ func ExtractAssets(data []byte) ([]Asset, error) {
 	return out, nil
 }
 
-// looksLikeIBOM recognizes an Interactive HTML BOM by its generator signature,
-// so we don't store unrelated HTML.
+// looksLikeIBOM recognizes an Interactive HTML BOM by its generator signatures.
+// It scans the whole file (not just the head): a real iBOM inlines a large CSS
+// block first, so the "pcbdata"/"ibom" markers can sit hundreds of KB in, and
+// the title is "Interactive BOM for KiCAD".
 func looksLikeIBOM(b []byte) bool {
-	head := b
-	if len(head) > 8192 {
-		head = head[:8192]
-	}
-	s := strings.ToLower(string(head))
-	return strings.Contains(s, "ibom") ||
+	s := strings.ToLower(string(b))
+	return strings.Contains(s, "pcbdata") ||
+		strings.Contains(s, "interactive bom") ||
 		strings.Contains(s, "interactive html bom") ||
-		strings.Contains(s, "pcbdata")
+		strings.Contains(s, "var config") && strings.Contains(s, "ibom")
 }
