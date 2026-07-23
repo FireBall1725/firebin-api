@@ -24,6 +24,7 @@ type Handler struct {
 
 	Categories *repository.CategoryRepo
 	Parts      *repository.PartRepo
+	Projects   *repository.ProjectRepo
 	Locations  *repository.LocationRepo
 	Stock      *repository.StockRepo
 	Stats      *repository.StatsRepo
@@ -63,6 +64,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) *Handler 
 		Tokens:     repository.NewTokenRepo(pool),
 		Categories: repository.NewCategoryRepo(pool),
 		Parts:      repository.NewPartRepo(pool),
+		Projects:   repository.NewProjectRepo(pool),
 		Locations:  repository.NewLocationRepo(pool),
 		Stock:      repository.NewStockRepo(pool),
 		Stats:      repository.NewStatsRepo(pool),
