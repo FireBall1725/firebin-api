@@ -45,6 +45,46 @@ func (r *StockRepo) ListForPart(ctx context.Context, partID uuid.UUID) ([]models
 	return out, rows.Err()
 }
 
+// StockLot is one available stock lot of a part at a location, for pick-list
+// allocation.
+type StockLot struct {
+	ID           uuid.UUID
+	PartID       uuid.UUID
+	PartName     string
+	LocationID   *uuid.UUID
+	LocationName *string
+	Quantity     float64
+}
+
+// StockForParts returns the available ('ok', qty > 0) stock lots for a set of
+// parts, ordered by location name (unbinned last) so a pick list walks bins in
+// order.
+func (r *StockRepo) StockForParts(ctx context.Context, partIDs []uuid.UUID) ([]StockLot, error) {
+	if len(partIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT s.id, s.part_id, p.name, s.location_id, l.name, s.quantity::float8
+		FROM stock_items s
+		JOIN parts p ON p.id = s.part_id
+		LEFT JOIN storage_locations l ON l.id = s.location_id
+		WHERE s.part_id = ANY($1) AND s.status = 'ok' AND s.quantity > 0
+		ORDER BY l.name NULLS LAST, s.added_at`, partIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []StockLot{}
+	for rows.Next() {
+		var s StockLot
+		if err := rows.Scan(&s.ID, &s.PartID, &s.PartName, &s.LocationID, &s.LocationName, &s.Quantity); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
 // ListForLocation returns every stock lot held at a location, with part names.
 func (r *StockRepo) ListForLocation(ctx context.Context, locationID uuid.UUID) ([]models.StockItem, error) {
 	rows, err := r.pool.Query(ctx, `

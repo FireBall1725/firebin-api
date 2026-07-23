@@ -9,6 +9,46 @@ import (
 	"github.com/google/uuid"
 )
 
+// PickList is the result of assembling N of a board: what to pull from which
+// bin, plus shortfalls and lines with no inventory match.
+type PickList struct {
+	BoardID    uuid.UUID       `json:"board_id"`
+	BoardName  string          `json:"board_name"`
+	Quantity   int             `json:"quantity"` // boards to build
+	Copies     int             `json:"copies"`   // panel N-up (per board)
+	TotalUnits float64         `json:"total_units"`
+	Entries    []PickEntry     `json:"entries"`    // sorted by location, then part
+	Shortfalls []PickShortfall `json:"shortfalls"` // parts short of stock
+	Unmatched  []PickUnmatched `json:"unmatched"`  // BOM lines with no matched part
+}
+
+// PickEntry is one line of the pick list: pull Quantity of a part from a bin.
+type PickEntry struct {
+	StockItemID  uuid.UUID  `json:"stock_item_id"`
+	PartID       uuid.UUID  `json:"part_id"`
+	PartName     string     `json:"part_name"`
+	LocationID   *uuid.UUID `json:"location_id,omitempty"`
+	LocationName string     `json:"location_name"` // "" when the lot has no bin
+	Quantity     float64    `json:"quantity"`
+}
+
+// PickShortfall flags a matched part with too little stock for the build.
+type PickShortfall struct {
+	PartID    uuid.UUID `json:"part_id"`
+	PartName  string    `json:"part_name"`
+	Required  float64   `json:"required"`
+	Available float64   `json:"available"`
+	Short     float64   `json:"short"`
+}
+
+// PickUnmatched is a BOM line that can't be picked because it isn't matched to
+// an inventory part.
+type PickUnmatched struct {
+	Refs     string `json:"refs"`
+	Value    string `json:"value"`
+	Quantity int    `json:"quantity"` // total needed across the whole build
+}
+
 // Project is a design made of one or more boards.
 type Project struct {
 	ID          uuid.UUID `json:"id"`
