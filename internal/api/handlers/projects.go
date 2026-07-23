@@ -194,6 +194,9 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 					}
 					if err := h.Projects.CreateBoard(r.Context(), pb); err == nil {
 						_ = h.Projects.ReplaceBOMLines(r.Context(), pb.ID, matched)
+						// Render the panel's own PCB so its layout tab and tile show
+						// the N-up board, not a placeholder.
+						h.saveRender(r.Context(), projectID, pb.ID, pb.Name, p.PCB)
 					}
 				}
 			}
@@ -223,14 +226,7 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	case "kicad_pcb":
 		pcbBytes = data
 	}
-	if pcbBytes != nil {
-		if pcb, err := kicad.GeneratePcbData(pcbBytes); err == nil {
-			if js, err := json.Marshal(pcb); err == nil {
-				rec := &models.ProjectAsset{ProjectID: projectID, BoardID: &board.ID, Name: board.Name + ".pcbrender.json", Kind: "pcbrender", Mime: "application/json"}
-				_ = h.Projects.CreateAsset(r.Context(), rec, js)
-			}
-		}
-	}
+	h.saveRender(r.Context(), projectID, board.ID, board.Name, pcbBytes)
 
 	full, err := h.Projects.GetBoard(r.Context(), board.ID)
 	if err != nil || full == nil {
@@ -735,6 +731,25 @@ func parseBOM(filename string, data []byte) ([]kicad.BOMLine, string, error) {
 	}
 	l, err := kicad.ParseBOMCSV(data)
 	return l, "bom_csv", err
+}
+
+// saveRender generates an iBOM-style board render from a .kicad_pcb and stores it
+// as the board's 'pcbrender' asset (the layout fallback when there's no iBOM).
+// No-op on nil bytes or a parse/marshal failure.
+func (h *Handler) saveRender(ctx context.Context, projectID, boardID uuid.UUID, name string, pcbBytes []byte) {
+	if pcbBytes == nil {
+		return
+	}
+	pcb, err := kicad.GeneratePcbData(pcbBytes)
+	if err != nil {
+		return
+	}
+	js, err := json.Marshal(pcb)
+	if err != nil {
+		return
+	}
+	rec := &models.ProjectAsset{ProjectID: projectID, BoardID: &boardID, Name: name + ".pcbrender.json", Kind: "pcbrender", Mime: "application/json"}
+	_ = h.Projects.CreateAsset(ctx, rec, js)
 }
 
 func boardNameFromFilename(filename string) string {
