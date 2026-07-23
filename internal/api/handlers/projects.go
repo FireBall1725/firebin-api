@@ -148,6 +148,16 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	keepRenders := r.FormValue("keep_renders") != "false"
 	attachIbom := r.FormValue("attach_ibom") != "false"
 
+	// A project zip holding several distinct boards imports one board per
+	// sub-project. Ordinary single-board zips (len<=1) fall through to the normal
+	// flow below (which keeps panel detection, iBOM, and renders).
+	if format == "kicad_zip" {
+		if zbs, err := kicad.ParseZipBoards(data); err == nil && len(zbs) > 1 {
+			h.createMultiBoard(w, r, projectID, filename, revision, data, zbs, keepPanels, keepRenders, attachIbom)
+			return
+		}
+	}
+
 	// A standalone .kicad_pcb can itself be a panel (uploaded directly rather
 	// than detected inside a project zip). Mark it kind=panel with an N-up copies
 	// multiplier and store the single-board BOM (deduplicated by reference), so
@@ -231,6 +241,71 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	full, err := h.Projects.GetBoard(r.Context(), board.ID)
 	if err != nil || full == nil {
 		respond.Error(w, http.StatusInternalServerError, "board saved but could not reload")
+		return
+	}
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusCreated, full)
+}
+
+// createMultiBoard imports a project zip that holds several distinct boards,
+// creating one board per sub-project (each with its own BOM + render). The root
+// board also gets the zip's panels, iBOM, and image renders. Responds with the
+// root board.
+func (h *Handler) createMultiBoard(
+	w http.ResponseWriter, r *http.Request, projectID uuid.UUID, filename, revision string,
+	data []byte, zbs []kicad.ZipBoard, keepPanels, keepRenders, attachIbom bool,
+) {
+	ctx := r.Context()
+	var root *models.Board
+	var rootMatched []models.BOMLine
+	for _, zb := range zbs {
+		matched := h.matchLines(r, projectID, zb.Lines)
+		b := &models.Board{
+			ProjectID: projectID, Name: zb.Name, Revision: revision, SourceFilename: filename,
+			SourceFormat: "kicad_zip", Kind: "board", Copies: 1,
+		}
+		if err := h.Projects.CreateBoard(ctx, b); err != nil {
+			continue
+		}
+		_ = h.Projects.ReplaceBOMLines(ctx, b.ID, matched)
+		h.saveRender(ctx, projectID, b.ID, b.Name, zb.PCB)
+		if zb.Root {
+			root, rootMatched = b, matched
+		}
+	}
+	if root == nil {
+		respond.Error(w, http.StatusInternalServerError, "could not import the project")
+		return
+	}
+
+	// Panels and the zip's iBOM/image renders attach to the root board.
+	if keepPanels {
+		if panels, err := kicad.DetectPanels(data); err == nil {
+			for _, p := range panels {
+				pb := &models.Board{
+					ProjectID: projectID, Name: p.Name, Revision: revision, SourceFilename: filename,
+					SourceFormat: "kicad_panel", Kind: "panel", Copies: p.Copies,
+				}
+				if err := h.Projects.CreateBoard(ctx, pb); err == nil {
+					_ = h.Projects.ReplaceBOMLines(ctx, pb.ID, rootMatched)
+					h.saveRender(ctx, projectID, pb.ID, pb.Name, p.PCB)
+				}
+			}
+		}
+	}
+	if assets, err := kicad.ExtractAssets(data); err == nil {
+		for _, a := range assets {
+			if (a.Kind == "ibom" && !attachIbom) || (a.Kind == "image" && !keepRenders) {
+				continue
+			}
+			rec := &models.ProjectAsset{ProjectID: projectID, BoardID: &root.ID, Name: a.Name, Kind: a.Kind, Mime: a.Mime}
+			_ = h.Projects.CreateAsset(ctx, rec, a.Content)
+		}
+	}
+
+	full, err := h.Projects.GetBoard(ctx, root.ID)
+	if err != nil || full == nil {
+		respond.Error(w, http.StatusInternalServerError, "boards saved but could not reload")
 		return
 	}
 	h.Bus.Publish("projects")
