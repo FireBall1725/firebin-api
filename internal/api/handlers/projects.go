@@ -509,10 +509,10 @@ func (h *Handler) CreateBlankBoard(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, board)
 }
 
-// UploadBoardIbom attaches (or replaces) a board's interactive BOM from an
-// uploaded iBOM .html. The board's layout tab then uses it over the generated
-// render; removing it later reverts to the generated render.
-func (h *Handler) UploadBoardIbom(w http.ResponseWriter, r *http.Request) {
+// UploadBoardAsset attaches a file to a board, detecting its kind: an Interactive
+// HTML BOM (replaces the board's existing iBOM, so the layout tab uses it over
+// the generated render) or an image (added as a render; several are allowed).
+func (h *Handler) UploadBoardAsset(w http.ResponseWriter, r *http.Request) {
 	boardID, ok := pathUUID(w, r)
 	if !ok {
 		return
@@ -537,42 +537,52 @@ func (h *Handler) UploadBoardIbom(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusBadRequest, "could not read upload")
 		return
 	}
-	if !kicad.LooksLikeIBOM(data) {
-		respond.Error(w, http.StatusUnprocessableEntity, "that file isn't an Interactive HTML BOM (no pcbdata found)")
+
+	name := header.Filename
+	if name == "" {
+		name = "file"
+	}
+	rec := &models.ProjectAsset{ProjectID: board.ProjectID, BoardID: &boardID, Name: name}
+	switch {
+	case kicad.LooksLikeIBOM(data):
+		// An iBOM replaces the board's existing one (only one drives the layout).
+		if _, err := h.Projects.DeleteBoardAssetsOfKind(r.Context(), boardID, "ibom"); err != nil {
+			respond.Error(w, http.StatusInternalServerError, "could not replace the existing iBOM")
+			return
+		}
+		rec.Kind, rec.Mime = "ibom", "text/html"
+	case imageMime(name) != "":
+		rec.Kind, rec.Mime = "image", imageMime(name)
+	default:
+		respond.Error(w, http.StatusUnprocessableEntity, "unsupported file — attach an interactive BOM (.html) or an image (.png/.jpg/.svg…)")
 		return
 	}
 
-	// Replace any existing iBOM for this board.
-	if _, err := h.Projects.DeleteBoardAssetsOfKind(r.Context(), boardID, "ibom"); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "could not replace the existing iBOM")
-		return
-	}
-	name := header.Filename
-	if name == "" {
-		name = "ibom.html"
-	}
-	rec := &models.ProjectAsset{ProjectID: board.ProjectID, BoardID: &boardID, Name: name, Kind: "ibom", Mime: "text/html"}
 	if err := h.Projects.CreateAsset(r.Context(), rec, data); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "could not save the iBOM")
+		respond.Error(w, http.StatusInternalServerError, "could not save the file")
 		return
 	}
 	h.Bus.Publish("projects")
 	respond.JSON(w, http.StatusCreated, rec)
 }
 
-// RemoveBoardIbom clears a board's interactive BOM. The layout tab falls back to
-// the render FireBin generated on upload.
-func (h *Handler) RemoveBoardIbom(w http.ResponseWriter, r *http.Request) {
-	boardID, ok := pathUUID(w, r)
-	if !ok {
-		return
+// imageMime returns the image MIME type for a filename, or "" if it isn't one.
+func imageMime(name string) string {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".svg":
+		return "image/svg+xml"
+	case ".bmp":
+		return "image/bmp"
 	}
-	if _, err := h.Projects.DeleteBoardAssetsOfKind(r.Context(), boardID, "ibom"); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "could not remove the iBOM")
-		return
-	}
-	h.Bus.Publish("projects")
-	respond.JSON(w, http.StatusOK, map[string]string{"status": "removed"})
+	return ""
 }
 
 type bomLineRequest struct {
