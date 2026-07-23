@@ -124,6 +124,62 @@ func ensureSlices(p *models.EnrichedPart) {
 	}
 }
 
+// mojibake maps the CJK characters that result when a symbol's UTF-8 bytes get
+// decoded as GBK upstream back to the intended symbol. E.g. "±" is UTF-8 C2 B1,
+// which GBK reads as "卤"; distributor data (often sourced through Chinese
+// systems) arrives already mangled this way.
+var mojibake = map[rune]rune{
+	'卤': '±', '掳': '°', '碌': 'µ', '脳': '×', '梅': '÷',
+	'虏': '²', '鲁': '³', '路': '·', '惟': 'Ω', '螖': 'Δ',
+}
+
+// fixMojibake repairs the GBK-of-UTF-8 mangling above. It only runs on
+// mostly-ASCII strings (these spec descriptions are English) so a genuinely
+// Chinese value is left alone — the replacement chars include common Han
+// characters like 路 that we must not touch in real Chinese text.
+func fixMojibake(s string) string {
+	if s == "" {
+		return s
+	}
+	ascii, total := 0, 0
+	for _, r := range s {
+		total++
+		if r < 128 {
+			ascii++
+		}
+	}
+	if total == 0 || ascii*100/total < 60 {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if rep, ok := mojibake[r]; ok {
+			b.WriteRune(rep)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// scrubEnriched repairs mojibake across every text field of an enriched part.
+// Applied on both the fresh and cached paths so re-scans self-heal with no
+// provider query.
+func scrubEnriched(p *models.EnrichedPart) {
+	if p == nil {
+		return
+	}
+	p.Description = fixMojibake(p.Description)
+	p.Manufacturer = fixMojibake(p.Manufacturer)
+	p.Category = fixMojibake(p.Category)
+	p.Name = fixMojibake(p.Name)
+	for i := range p.Parameters {
+		p.Parameters[i].Name = fixMojibake(p.Parameters[i].Name)
+		p.Parameters[i].Value = fixMojibake(p.Parameters[i].Value)
+	}
+}
+
 // paramUnits are the unit suffixes we peel off a "100 V" style value into its
 // own column, longest/most-specific first. The numeric-head guard below means
 // order rarely matters (a fuller unit's extra letter poisons the shorter one's
@@ -203,6 +259,7 @@ func (h *Handler) Enrich(w http.ResponseWriter, r *http.Request) {
 	}
 	// Serve from cache first so re-scans/retries never spend a provider query.
 	if cached, ok, _ := h.EnrichCache.Get(r.Context(), mpn); ok {
+		scrubEnriched(cached)
 		cleanParameters(cached)
 		cached.Name = deriveName(cached)
 		ensureSlices(cached)
@@ -229,6 +286,7 @@ func (h *Handler) Enrich(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = h.EnrichCache.Set(r.Context(), mpn, part) // cache the full hit
+	scrubEnriched(part)
 	cleanParameters(part)
 	part.Name = deriveName(part)
 	ensureSlices(part)
