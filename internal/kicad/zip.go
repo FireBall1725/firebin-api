@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"path"
+	"sort"
 	"strings"
 )
 
@@ -96,6 +97,79 @@ func ParseZip(data []byte) ([]BOMLine, error) {
 		return GroupComponents(comps), nil
 	}
 	return nil, errors.New("no .kicad_sch or BOM .csv found in the zip")
+}
+
+// ZipBoard is one distinct board found in a project zip: a KiCad sub-project
+// (.kicad_pro with a sibling .kicad_sch) that isn't a panel.
+type ZipBoard struct {
+	Name  string
+	Lines []BOMLine
+	PCB   []byte // sibling .kicad_pcb, for the render (may be nil)
+	Root  bool   // the shallowest board — gets the iBOM/images/panels
+}
+
+// ParseZipBoards finds every distinct board in a project zip. A board is a
+// .kicad_pro whose sibling <name>.kicad_sch exists and whose sibling PCB isn't a
+// panel — so reusable sub-circuits (no .kicad_pro) and panel sub-projects (no
+// schematic / a panelized PCB) are excluded. The shallowest is the root. Returns
+// one entry for an ordinary single-board project.
+func ParseZipBoards(data []byte) ([]ZipBoard, error) {
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
+	files := map[string]*zip.File{}
+	var proKeys []string
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() || skipZipEntry(f.Name) {
+			continue
+		}
+		key := path.Clean(f.Name)
+		files[key] = f
+		base := path.Base(key)
+		if strings.HasSuffix(strings.ToLower(base), ".kicad_pro") && !strings.HasPrefix(base, ".") {
+			proKeys = append(proKeys, key)
+		}
+	}
+
+	type cand struct {
+		schKey, name string
+		pcb          []byte
+		depth        int
+	}
+	var cands []cand
+	for _, pk := range proKeys {
+		base := path.Base(pk)
+		stem := base[:len(base)-len(".kicad_pro")]
+		schKey := path.Clean(path.Join(path.Dir(pk), stem+".kicad_sch"))
+		if _, ok := files[schKey]; !ok {
+			continue
+		}
+		var pcb []byte
+		if f, ok := files[path.Clean(path.Join(path.Dir(pk), stem+".kicad_pcb"))]; ok {
+			pcb, _ = readZipFile(f)
+		}
+		if pcb != nil {
+			if _, isPanel := DetectPanelPCB(pcb); isPanel {
+				continue // panels are handled by DetectPanels
+			}
+		}
+		cands = append(cands, cand{schKey: schKey, name: stem, pcb: pcb, depth: strings.Count(schKey, "/")})
+	}
+	// Root (shallowest) first, then by name for stable ordering.
+	sort.SliceStable(cands, func(i, j int) bool {
+		if cands[i].depth != cands[j].depth {
+			return cands[i].depth < cands[j].depth
+		}
+		return cands[i].name < cands[j].name
+	})
+
+	out := make([]ZipBoard, 0, len(cands))
+	for i, c := range cands {
+		comps := collectSheet(c.schKey, files, map[string]bool{})
+		out = append(out, ZipBoard{Name: c.name, Lines: GroupComponents(comps), PCB: c.pcb, Root: i == 0})
+	}
+	return out, nil
 }
 
 // collectSheet parses one schematic and recurses into the sub-sheets it
