@@ -4,6 +4,7 @@
 package handlers
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/firelabsca/firebin-api/internal/api/respond"
 	"github.com/firelabsca/firebin-api/internal/kicad"
 	"github.com/firelabsca/firebin-api/internal/models"
+	"github.com/google/uuid"
 )
 
 type projectRequest struct {
@@ -386,8 +388,23 @@ func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-// matchLines resolves each parsed BOM line to an inventory part: by MPN first,
-// then by value + footprint. Unmatched lines are flagged for manual mapping.
+// resolveMatch resolves a BOM line to an inventory part: by MPN first, then by
+// value + footprint. Returns (nil, "none") when nothing matches.
+func (h *Handler) resolveMatch(ctx context.Context, mpn, value, footprint string) (*uuid.UUID, string) {
+	if mpn != "" {
+		if id, _, found, _ := h.Catalog.FindPartByMPN(ctx, mpn); found {
+			return &id, "mpn"
+		}
+	}
+	if value != "" {
+		if id, _, found, _ := h.Projects.FindPartByValueFootprint(ctx, value, footprint); found {
+			return &id, "value_footprint"
+		}
+	}
+	return nil, "none"
+}
+
+// matchLines resolves each parsed BOM line to an inventory part.
 func (h *Handler) matchLines(r *http.Request, lines []kicad.BOMLine) []models.BOMLine {
 	ctx := r.Context()
 	out := make([]models.BOMLine, 0, len(lines))
@@ -400,23 +417,126 @@ func (h *Handler) matchLines(r *http.Request, lines []kicad.BOMLine) []models.BO
 			MPN:          l.MPN,
 			Manufacturer: l.Manufacturer,
 			Description:  l.Description,
-			MatchKind:    "none",
 		}
-		if l.MPN != "" {
-			if id, _, found, _ := h.Catalog.FindPartByMPN(ctx, l.MPN); found {
-				m.PartID = &id
-				m.MatchKind = "mpn"
-			}
-		}
-		if m.PartID == nil && l.Value != "" {
-			if id, _, found, _ := h.Projects.FindPartByValueFootprint(ctx, l.Value, l.Footprint); found {
-				m.PartID = &id
-				m.MatchKind = "value_footprint"
-			}
-		}
+		m.PartID, m.MatchKind = h.resolveMatch(ctx, l.MPN, l.Value, l.Footprint)
 		out = append(out, m)
 	}
 	return out
+}
+
+// CreateBlankBoard makes an empty board (no upload) to build a BOM by hand.
+func (h *Handler) CreateBlankBoard(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Name     string `json:"name"`
+		Revision string `json:"revision"`
+	}
+	if !respond.Decode(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		respond.Error(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	board := &models.Board{
+		ProjectID: projectID, Name: strings.TrimSpace(req.Name), Revision: strings.TrimSpace(req.Revision),
+		SourceFormat: "manual", Kind: "board", Copies: 1,
+	}
+	if err := h.Projects.CreateBoard(r.Context(), board); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not create board")
+		return
+	}
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusCreated, board)
+}
+
+type bomLineRequest struct {
+	Refs         string `json:"refs"`
+	Quantity     int    `json:"quantity"`
+	Value        string `json:"value"`
+	Footprint    string `json:"footprint"`
+	MPN          string `json:"mpn"`
+	Manufacturer string `json:"manufacturer"`
+	Description  string `json:"description"`
+}
+
+func (req bomLineRequest) toLine() models.BOMLine {
+	return models.BOMLine{
+		Refs: strings.TrimSpace(req.Refs), Quantity: req.Quantity, Value: strings.TrimSpace(req.Value),
+		Footprint: strings.TrimSpace(req.Footprint), MPN: strings.TrimSpace(req.MPN),
+		Manufacturer: strings.TrimSpace(req.Manufacturer), Description: strings.TrimSpace(req.Description),
+	}
+}
+
+// AddBOMLine appends a manually-entered line to a board's BOM (auto-matched).
+func (h *Handler) AddBOMLine(w http.ResponseWriter, r *http.Request) {
+	boardID, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	var req bomLineRequest
+	if !respond.Decode(w, r, &req) {
+		return
+	}
+	l := req.toLine()
+	l.BoardID = boardID
+	if l.Quantity < 1 {
+		l.Quantity = 1
+	}
+	l.PartID, l.MatchKind = h.resolveMatch(r.Context(), l.MPN, l.Value, l.Footprint)
+	if err := h.Projects.CreateBOMLine(r.Context(), &l); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not add line")
+		return
+	}
+	full, _ := h.Projects.GetBOMLine(r.Context(), l.ID)
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusCreated, full)
+}
+
+// UpdateBOMLine edits a BOM line and re-matches it.
+func (h *Handler) UpdateBOMLine(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	var req bomLineRequest
+	if !respond.Decode(w, r, &req) {
+		return
+	}
+	l := req.toLine()
+	l.ID = id
+	if l.Quantity < 1 {
+		l.Quantity = 1
+	}
+	l.PartID, l.MatchKind = h.resolveMatch(r.Context(), l.MPN, l.Value, l.Footprint)
+	boardID, err := h.Projects.UpdateBOMLine(r.Context(), &l)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not update line")
+		return
+	}
+	if boardID == uuid.Nil {
+		respond.Error(w, http.StatusNotFound, "line not found")
+		return
+	}
+	full, _ := h.Projects.GetBOMLine(r.Context(), id)
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusOK, full)
+}
+
+func (h *Handler) DeleteBOMLine(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	if _, err := h.Projects.DeleteBOMLine(r.Context(), id); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not delete line")
+		return
+	}
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 // parseBOM dispatches on file extension, then falls back to sniffing content.
