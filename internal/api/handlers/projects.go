@@ -229,6 +229,9 @@ func (h *Handler) matchLines(r *http.Request, lines []kicad.BOMLine) []models.BO
 // parseBOM dispatches on file extension, then falls back to sniffing content.
 func parseBOM(filename string, data []byte) ([]kicad.BOMLine, string, error) {
 	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".zip":
+		l, err := kicad.ParseZip(data)
+		return l, "kicad_zip", err
 	case ".kicad_sch":
 		l, err := kicad.ParseSchematic(data)
 		return l, "kicad_sch", err
@@ -236,7 +239,11 @@ func parseBOM(filename string, data []byte) ([]kicad.BOMLine, string, error) {
 		l, err := kicad.ParseBOMCSV(data)
 		return l, "bom_csv", err
 	}
-	// Unknown extension: sniff. A schematic starts with "(kicad_sch".
+	// Unknown extension: sniff by magic/content.
+	if kicad.IsZip(data) {
+		l, err := kicad.ParseZip(data)
+		return l, "kicad_zip", err
+	}
 	head := data
 	if len(head) > 64 {
 		head = head[:64]
