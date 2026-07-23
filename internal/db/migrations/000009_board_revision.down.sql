@@ -1,0 +1,1 @@
+ALTER TABLE project_boards DROP COLUMN IF EXISTS revision;

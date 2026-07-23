@@ -138,10 +138,16 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = boardNameFromFilename(filename)
 	}
+	// Mapping fields (set by the upload wizard); default to keeping everything.
+	revision := strings.TrimSpace(r.FormValue("revision"))
+	keepPanels := r.FormValue("keep_panels") != "false"
+	keepRenders := r.FormValue("keep_renders") != "false"
+	attachIbom := r.FormValue("attach_ibom") != "false"
 
 	board := &models.Board{
 		ProjectID:      projectID,
 		Name:           name,
+		Revision:       revision,
 		SourceFilename: filename,
 		SourceFormat:   format,
 	}
@@ -159,20 +165,28 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	if format == "kicad_zip" {
 		// A panel is the same board arrayed N-up (PCB only, no schematic). Add
 		// it as its own board sharing the per-board BOM with a copies multiplier.
-		if panels, err := kicad.DetectPanels(data); err == nil {
-			for _, p := range panels {
-				pb := &models.Board{
-					ProjectID: projectID, Name: p.Name, SourceFilename: filename,
-					SourceFormat: "kicad_panel", Kind: "panel", Copies: p.Copies,
-				}
-				if err := h.Projects.CreateBoard(r.Context(), pb); err == nil {
-					_ = h.Projects.ReplaceBOMLines(r.Context(), pb.ID, matched)
+		if keepPanels {
+			if panels, err := kicad.DetectPanels(data); err == nil {
+				for _, p := range panels {
+					pb := &models.Board{
+						ProjectID: projectID, Name: p.Name, Revision: revision, SourceFilename: filename,
+						SourceFormat: "kicad_panel", Kind: "panel", Copies: p.Copies,
+					}
+					if err := h.Projects.CreateBoard(r.Context(), pb); err == nil {
+						_ = h.Projects.ReplaceBOMLines(r.Context(), pb.ID, matched)
+					}
 				}
 			}
 		}
 		// Pull renderable files (iBOM, image renders) out of the zip.
 		if assets, err := kicad.ExtractAssets(data); err == nil {
 			for _, a := range assets {
+				if a.Kind == "ibom" && !attachIbom {
+					continue
+				}
+				if a.Kind == "image" && !keepRenders {
+					continue
+				}
 				rec := &models.ProjectAsset{ProjectID: projectID, BoardID: &board.ID, Name: a.Name, Kind: a.Kind, Mime: a.Mime}
 				_ = h.Projects.CreateAsset(r.Context(), rec, a.Content)
 			}
@@ -186,6 +200,82 @@ func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	}
 	h.Bus.Publish("projects")
 	respond.JSON(w, http.StatusCreated, full)
+}
+
+type previewPanel struct {
+	Name   string `json:"name"`
+	Copies int    `json:"copies"`
+}
+
+// PreviewBoard parses an upload without committing and returns what was detected
+// (board name, title-block revision, panels, iBOM, renders) so the upload wizard
+// can show a mapping/confirm step before creating anything.
+func (h *Handler) PreviewBoard(w http.ResponseWriter, r *http.Request) {
+	if _, ok := pathUUID(w, r); !ok {
+		return
+	}
+	if err := r.ParseMultipartForm(16 << 20); err != nil {
+		respond.Error(w, http.StatusBadRequest, "expected a multipart file upload")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "missing 'file' field")
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 256<<20))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "could not read upload")
+		return
+	}
+
+	filename := header.Filename
+	lines, format, err := parseBOM(filename, data)
+	if err != nil {
+		respond.Error(w, http.StatusUnprocessableEntity, "could not parse file: "+err.Error())
+		return
+	}
+
+	name := boardNameFromFilename(filename)
+	revision := ""
+	panels := []previewPanel{}
+	renders := []string{}
+	ibom := ""
+
+	switch format {
+	case "kicad_zip":
+		if n, rev := kicad.ProjectInfo(data); n != "" {
+			name = n
+			revision = rev
+		}
+		if ps, err := kicad.DetectPanels(data); err == nil {
+			for _, p := range ps {
+				panels = append(panels, previewPanel{Name: p.Name, Copies: p.Copies})
+			}
+		}
+		if assets, err := kicad.ExtractAssets(data); err == nil {
+			for _, a := range assets {
+				if a.Kind == "ibom" {
+					ibom = a.Name
+				} else if a.Kind == "image" {
+					renders = append(renders, a.Name)
+				}
+			}
+		}
+	case "kicad_sch":
+		revision = kicad.SchematicRevision(data)
+	}
+
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"format":     format,
+		"name":       name,
+		"revision":   revision,
+		"line_count": len(lines),
+		"panels":     panels,
+		"ibom":       ibom,
+		"renders":    renders,
+	})
 }
 
 func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
