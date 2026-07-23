@@ -1,0 +1,4 @@
+ALTER TABLE board_bom_lines DROP COLUMN IF EXISTS ipn;
+ALTER TABLE board_bom_lines DROP COLUMN IF EXISTS supplier_sku;
+DROP INDEX IF EXISTS idx_parts_ipn;
+ALTER TABLE parts DROP COLUMN IF EXISTS ipn;

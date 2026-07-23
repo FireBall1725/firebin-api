@@ -41,6 +41,7 @@ type Part struct {
 	VariantOf         *uuid.UUID `json:"variant_of,omitempty"`
 	Name              string     `json:"name"`
 	Description       *string    `json:"description,omitempty"`
+	IPN               *string    `json:"ipn,omitempty"` // FireBin internal part number
 	Package           *string    `json:"package,omitempty"`
 	Keywords          *string    `json:"keywords,omitempty"`
 	Barcode           *string    `json:"barcode,omitempty"`
@@ -70,7 +71,7 @@ type PartAlternative struct {
 	MPN          string     `json:"mpn"`
 	Manufacturer string     `json:"manufacturer,omitempty"`
 	Description  string     `json:"description,omitempty"`
-	PartID       *uuid.UUID `json:"part_id,omitempty"`   // set if we stock it
+	PartID       *uuid.UUID `json:"part_id,omitempty"` // set if we stock it
 	PartName     *string    `json:"part_name,omitempty"`
 }
 

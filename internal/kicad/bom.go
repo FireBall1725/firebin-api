@@ -17,6 +17,8 @@ type Component struct {
 	Footprint    string
 	MPN          string
 	Manufacturer string
+	SupplierSKU  string
+	IPN          string
 	Description  string
 }
 
@@ -28,6 +30,8 @@ type BOMLine struct {
 	Footprint    string
 	MPN          string
 	Manufacturer string
+	SupplierSKU  string // supplier/distributor SKU (LCSC, Digi-Key…), for matching
+	IPN          string // FireBin internal part number, if the BOM carries one
 	Description  string
 }
 
@@ -158,6 +162,14 @@ func componentFromSymbol(sym *node) (Component, bool) {
 				if c.Manufacturer == "" {
 					c.Manufacturer = val
 				}
+			case "fbpn", "firebin", "firebinpn", "firebin part number", "ipn", "internal part number":
+				if c.IPN == "" {
+					c.IPN = val
+				}
+			case "lcsc", "lcsc part", "lcsc part number", "lcsc#", "supplier part", "supplier part number", "sku":
+				if c.SupplierSKU == "" {
+					c.SupplierSKU = val
+				}
 			case "description", "desc":
 				if c.Description == "" {
 					c.Description = val
@@ -195,6 +207,8 @@ func GroupComponents(comps []Component) []BOMLine {
 				Footprint:    c.Footprint,
 				MPN:          c.MPN,
 				Manufacturer: c.Manufacturer,
+				SupplierSKU:  c.SupplierSKU,
+				IPN:          c.IPN,
 				Description:  c.Description,
 			}
 			groups[k] = g
@@ -206,6 +220,12 @@ func GroupComponents(comps []Component) []BOMLine {
 		g.Quantity++
 		if g.Manufacturer == "" {
 			g.Manufacturer = c.Manufacturer
+		}
+		if g.SupplierSKU == "" {
+			g.SupplierSKU = c.SupplierSKU
+		}
+		if g.IPN == "" {
+			g.IPN = c.IPN
 		}
 		if g.Description == "" {
 			g.Description = c.Description
@@ -259,8 +279,20 @@ func ParseBOMCSV(data []byte) ([]BOMLine, error) {
 	if err != nil {
 		return nil, err
 	}
+	return rowsToLines(rows), nil
+}
+
+// rowsToLines turns a header + data grid (from CSV or XLSX) into BOM lines by
+// fuzzy-matching columns, so exports from KiCad, EasyEDA, JLCPCB and LCSC all
+// work. Rows are assumed already grouped; quantity comes from the quantity
+// column or the reference count.
+func rowsToLines(rows [][]string) []BOMLine {
+	// Skip any leading blank rows before the header.
+	for len(rows) > 0 && rowEmpty(rows[0]) {
+		rows = rows[1:]
+	}
 	if len(rows) < 2 {
-		return nil, nil
+		return nil
 	}
 
 	col := map[string]int{}
@@ -286,17 +318,18 @@ func ParseBOMCSV(data []byte) ([]BOMLine, error) {
 	iVal := pick("value", "comment")
 	iFoot := pick("footprint", "package", "pattern")
 	iQty := pick("quantity", "qty", "count")
-	iMPN := pick("mpn", "manufacturerpartnumber", "mfrpartnumber", "partnumber", "mfrpart")
+	iMPN := pick("mpn", "manufacturerpartnumber", "manufacturerpart", "mfrpartnumber", "partnumber", "mfrpart", "mfgpartnumber")
 	iMfr := pick("manufacturer", "mfr", "mfg")
+	iSup := pick("supplierpart", "supplierpartnumber", "lcscpart", "lcscpartnumber", "lcsc", "jlcpcbpart", "distributorpart", "sku")
+	iIPN := pick("fbpn", "firebinpartnumber", "firebinpn", "firebin", "ipn", "internalpartnumber")
 	iDesc := pick("description", "desc")
 
 	out := []BOMLine{}
 	for _, row := range rows[1:] {
-		if len(row) == 0 {
+		if rowEmpty(row) {
 			continue
 		}
-		refField := get(row, iRef)
-		refs := splitRefs(refField)
+		refs := splitRefs(get(row, iRef))
 		qty := 0
 		if q, err := strconv.Atoi(get(row, iQty)); err == nil && q > 0 {
 			qty = q
@@ -313,6 +346,8 @@ func ParseBOMCSV(data []byte) ([]BOMLine, error) {
 			Footprint:    get(row, iFoot),
 			MPN:          get(row, iMPN),
 			Manufacturer: get(row, iMfr),
+			SupplierSKU:  get(row, iSup),
+			IPN:          get(row, iIPN),
 			Description:  get(row, iDesc),
 		}
 		if line.Value == "" && line.MPN == "" && len(line.Refs) == 0 {
@@ -320,7 +355,16 @@ func ParseBOMCSV(data []byte) ([]BOMLine, error) {
 		}
 		out = append(out, line)
 	}
-	return out, nil
+	return out
+}
+
+func rowEmpty(row []string) bool {
+	for _, c := range row {
+		if strings.TrimSpace(c) != "" {
+			return false
+		}
+	}
+	return true
 }
 
 func normHeader(h string) string {

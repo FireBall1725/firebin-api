@@ -25,6 +25,7 @@ type partRequest struct {
 	VariantOf         *uuid.UUID           `json:"variant_of"`
 	Name              string               `json:"name"`
 	Description       *string              `json:"description"`
+	IPN               *string              `json:"ipn"`
 	Package           *string              `json:"package"`
 	Keywords          *string              `json:"keywords"`
 	Barcode           *string              `json:"barcode"`
@@ -151,12 +152,26 @@ func (h *Handler) DeletePart(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+// normNilString trims a pointer string and returns nil when it's empty, so an
+// omitted/blank IPN stores as NULL (the unique index ignores NULLs).
+func normNilString(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	t := strings.TrimSpace(*s)
+	if t == "" {
+		return nil
+	}
+	return &t
+}
+
 func partFromRequest(req *partRequest) *models.Part {
 	return &models.Part{
 		CategoryID:        req.CategoryID,
 		VariantOf:         req.VariantOf,
 		Name:              strings.TrimSpace(req.Name),
 		Description:       req.Description,
+		IPN:               normNilString(req.IPN),
 		Package:           req.Package,
 		Keywords:          req.Keywords,
 		Barcode:           req.Barcode,
