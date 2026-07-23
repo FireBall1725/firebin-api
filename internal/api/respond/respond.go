@@ -11,9 +11,13 @@ import (
 	"net/http"
 )
 
-// ErrorBody is the wire shape for every error response.
+// ErrorBody is the wire shape for every error response. Error is a human-readable
+// English message (a sensible default the client can show as-is). Code is an
+// optional stable identifier the client can map to a localized message; when
+// absent the client falls back to Error.
 type ErrorBody struct {
 	Error string `json:"error"`
+	Code  string `json:"code,omitempty"`
 }
 
 // JSON writes v as JSON with the given status code.
@@ -28,9 +32,17 @@ func JSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-// Error writes an error envelope with the given status code and message.
+// Error writes an error envelope with the given status code and message (no
+// stable code — the client shows the message as-is).
 func Error(w http.ResponseWriter, status int, msg string) {
 	JSON(w, status, ErrorBody{Error: msg})
+}
+
+// ErrorCode writes an error envelope with a stable code the client can localize,
+// plus an English fallback message. Prefer this for new user-facing errors so
+// they're translatable; code is a dotted identifier, e.g. "board.parse_failed".
+func ErrorCode(w http.ResponseWriter, status int, code, msg string) {
+	JSON(w, status, ErrorBody{Error: msg, Code: code})
 }
 
 // Decode reads and validates a JSON request body into dst. It rejects unknown
