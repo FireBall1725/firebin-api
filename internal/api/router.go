@@ -68,6 +68,7 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	protected("PATCH /api/v1/projects/{id}", h.UpdateProject)
 	protected("DELETE /api/v1/projects/{id}", h.DeleteProject)
 	protected("POST /api/v1/projects/{id}/boards/preview", h.PreviewBoard)
+	protected("POST /api/v1/projects/{id}/matches", h.SetProjectMatch)
 	protected("POST /api/v1/projects/{id}/boards/blank", h.CreateBlankBoard)
 	protected("POST /api/v1/projects/{id}/boards", h.CreateBoard)
 	protected("GET /api/v1/projects/{id}/assets", h.ListProjectAssets)
