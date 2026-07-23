@@ -409,16 +409,27 @@ func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
-// resolveMatch resolves a BOM line to an inventory part: by MPN first, then by
-// value + footprint. Returns (nil, "none") when nothing matches.
-func (h *Handler) resolveMatch(ctx context.Context, mpn, value, footprint string) (*uuid.UUID, string) {
-	if mpn != "" {
-		if id, _, found, _ := h.Catalog.FindPartByMPN(ctx, mpn); found {
+// resolveMatch resolves a BOM line to an inventory part in priority order:
+// FireBin PN (IPN) → MPN → supplier SKU → value+footprint. Returns (nil, "none")
+// when nothing matches.
+func (h *Handler) resolveMatch(ctx context.Context, l models.BOMLine) (*uuid.UUID, string) {
+	if l.IPN != "" {
+		if id, _, found, _ := h.Catalog.FindPartByIPN(ctx, l.IPN); found {
+			return &id, "fbpn"
+		}
+	}
+	if l.MPN != "" {
+		if id, _, found, _ := h.Catalog.FindPartByMPN(ctx, l.MPN); found {
 			return &id, "mpn"
 		}
 	}
-	if value != "" {
-		if id, _, found, _ := h.Projects.FindPartByValueFootprint(ctx, value, footprint); found {
+	if l.SupplierSKU != "" {
+		if id, _, found, _ := h.Catalog.FindPartBySupplierSKU(ctx, l.SupplierSKU); found {
+			return &id, "supplier"
+		}
+	}
+	if l.Value != "" {
+		if id, _, found, _ := h.Projects.FindPartByValueFootprint(ctx, l.Value, l.Footprint); found {
 			return &id, "value_footprint"
 		}
 	}
@@ -437,9 +448,11 @@ func (h *Handler) matchLines(r *http.Request, lines []kicad.BOMLine) []models.BO
 			Footprint:    l.Footprint,
 			MPN:          l.MPN,
 			Manufacturer: l.Manufacturer,
+			SupplierSKU:  l.SupplierSKU,
+			IPN:          l.IPN,
 			Description:  l.Description,
 		}
-		m.PartID, m.MatchKind = h.resolveMatch(ctx, l.MPN, l.Value, l.Footprint)
+		m.PartID, m.MatchKind = h.resolveMatch(ctx, m)
 		out = append(out, m)
 	}
 	return out
@@ -481,15 +494,39 @@ type bomLineRequest struct {
 	Footprint    string `json:"footprint"`
 	MPN          string `json:"mpn"`
 	Manufacturer string `json:"manufacturer"`
+	SupplierSKU  string `json:"supplier_sku"`
+	IPN          string `json:"ipn"`
 	Description  string `json:"description"`
+	// PartID, when set, pins the line to a specific inventory part (a manual
+	// substitution). "" or absent leaves the match to auto-resolution; "none"
+	// clears the match back to unmatched.
+	PartID *string `json:"part_id"`
 }
 
 func (req bomLineRequest) toLine() models.BOMLine {
 	return models.BOMLine{
 		Refs: strings.TrimSpace(req.Refs), Quantity: req.Quantity, Value: strings.TrimSpace(req.Value),
 		Footprint: strings.TrimSpace(req.Footprint), MPN: strings.TrimSpace(req.MPN),
-		Manufacturer: strings.TrimSpace(req.Manufacturer), Description: strings.TrimSpace(req.Description),
+		Manufacturer: strings.TrimSpace(req.Manufacturer), SupplierSKU: strings.TrimSpace(req.SupplierSKU),
+		IPN: strings.TrimSpace(req.IPN), Description: strings.TrimSpace(req.Description),
 	}
+}
+
+// applyMatch sets a line's part match: an explicit part_id override pins the line
+// (match_kind "manual", or "none" to clear); otherwise it auto-resolves.
+func (h *Handler) applyMatch(ctx context.Context, l *models.BOMLine, override *string) {
+	if override != nil {
+		v := strings.TrimSpace(*override)
+		if v == "" || v == "none" {
+			l.PartID, l.MatchKind = nil, "none"
+			return
+		}
+		if id, err := uuid.Parse(v); err == nil {
+			l.PartID, l.MatchKind = &id, "manual"
+			return
+		}
+	}
+	l.PartID, l.MatchKind = h.resolveMatch(ctx, *l)
 }
 
 // AddBOMLine appends a manually-entered line to a board's BOM (auto-matched).
@@ -507,7 +544,7 @@ func (h *Handler) AddBOMLine(w http.ResponseWriter, r *http.Request) {
 	if l.Quantity < 1 {
 		l.Quantity = 1
 	}
-	l.PartID, l.MatchKind = h.resolveMatch(r.Context(), l.MPN, l.Value, l.Footprint)
+	h.applyMatch(r.Context(), &l, req.PartID)
 	if err := h.Projects.CreateBOMLine(r.Context(), &l); err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not add line")
 		return
@@ -532,7 +569,7 @@ func (h *Handler) UpdateBOMLine(w http.ResponseWriter, r *http.Request) {
 	if l.Quantity < 1 {
 		l.Quantity = 1
 	}
-	l.PartID, l.MatchKind = h.resolveMatch(r.Context(), l.MPN, l.Value, l.Footprint)
+	h.applyMatch(r.Context(), &l, req.PartID)
 	boardID, err := h.Projects.UpdateBOMLine(r.Context(), &l)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not update line")
@@ -575,6 +612,9 @@ func parseBOM(filename string, data []byte) ([]kicad.BOMLine, string, error) {
 	case ".csv", ".tsv":
 		l, err := kicad.ParseBOMCSV(data)
 		return l, "bom_csv", err
+	case ".xlsx":
+		l, err := kicad.ParseBOMXLSX(data)
+		return l, "bom_xlsx", err
 	case ".html", ".htm":
 		return nil, "", errors.New("a standalone interactive BOM (.html) isn't a BOM source — upload the zipped KiCad project so it attaches to the board")
 	}

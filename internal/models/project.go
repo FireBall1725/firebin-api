@@ -61,6 +61,8 @@ type BOMLine struct {
 	Footprint    string     `json:"footprint"`
 	MPN          string     `json:"mpn,omitempty"`
 	Manufacturer string     `json:"manufacturer,omitempty"`
+	SupplierSKU  string     `json:"supplier_sku,omitempty"`
+	IPN          string     `json:"ipn,omitempty"`
 	Description  string     `json:"description,omitempty"`
 	PartID       *uuid.UUID `json:"part_id,omitempty"`
 	PartName     string     `json:"part_name,omitempty"`

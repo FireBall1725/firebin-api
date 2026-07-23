@@ -294,6 +294,37 @@ func (r *CatalogRepo) FindPartByMPN(ctx context.Context, mpn string) (partID uui
 	return partID, name, true, nil
 }
 
+// FindPartByIPN resolves a part by its FireBin internal part number. This is the
+// highest-priority BOM match key.
+func (r *CatalogRepo) FindPartByIPN(ctx context.Context, ipn string) (partID uuid.UUID, name string, found bool, err error) {
+	err = r.pool.QueryRow(ctx, `
+		SELECT id, name FROM parts WHERE ipn = $1 LIMIT 1`, ipn).Scan(&partID, &name)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, "", false, nil
+		}
+		return uuid.Nil, "", false, err
+	}
+	return partID, name, true, nil
+}
+
+// FindPartBySupplierSKU resolves a part that stocks this supplier/distributor SKU
+// (LCSC, Digi-Key…), matching regardless of which supplier it belongs to.
+func (r *CatalogRepo) FindPartBySupplierSKU(ctx context.Context, sku string) (partID uuid.UUID, name string, found bool, err error) {
+	err = r.pool.QueryRow(ctx, `
+		SELECT p.id, p.name FROM supplier_parts sp
+		JOIN manufacturer_parts mp ON mp.id = sp.manufacturer_part_id
+		JOIN parts p ON p.id = mp.part_id
+		WHERE sp.sku = $1 LIMIT 1`, sku).Scan(&partID, &name)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, "", false, nil
+		}
+		return uuid.Nil, "", false, err
+	}
+	return partID, name, true, nil
+}
+
 func (r *CatalogRepo) DeleteSupplierPart(ctx context.Context, id uuid.UUID) error {
 	ct, err := r.pool.Exec(ctx, `DELETE FROM supplier_parts WHERE id = $1`, id)
 	if err != nil {

@@ -20,14 +20,14 @@ func NewPartRepo(pool *pgxpool.Pool) *PartRepo { return &PartRepo{pool: pool} }
 
 // partCols selects the base part columns, casting numeric to float8 so pgx can
 // scan straight into float64.
-const partCols = `id, category_id, variant_of, name, description, package, keywords,
+const partCols = `id, category_id, variant_of, name, description, ipn, package, keywords,
 	barcode, image_path, is_template, is_component, is_assembly, is_purchaseable,
 	is_trackable, minimum_stock::float8, default_location_id, created_at, updated_at`
 
 func scanPart(row pgx.Row) (*models.Part, error) {
 	var p models.Part
 	if err := row.Scan(
-		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.Package, &p.Keywords,
+		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package, &p.Keywords,
 		&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
 		&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
 	); err != nil {
@@ -99,7 +99,7 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 func scanPartWithTotals(row pgx.Row) (*models.Part, error) {
 	var p models.Part
 	if err := row.Scan(
-		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.Package, &p.Keywords,
+		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package, &p.Keywords,
 		&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
 		&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
 		&p.TotalStock, &p.VariantCount,
@@ -177,12 +177,12 @@ func (r *PartRepo) Get(ctx context.Context, id uuid.UUID) (*models.Part, error) 
 
 func (r *PartRepo) Create(ctx context.Context, p *models.Part) error {
 	return r.pool.QueryRow(ctx, `
-		INSERT INTO parts (category_id, variant_of, name, description, package, keywords,
+		INSERT INTO parts (category_id, variant_of, name, description, ipn, package, keywords,
 			barcode, image_path, is_template, is_component, is_assembly, is_purchaseable,
 			is_trackable, minimum_stock, default_location_id)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 		RETURNING id, created_at, updated_at`,
-		p.CategoryID, p.VariantOf, p.Name, p.Description, p.Package, p.Keywords,
+		p.CategoryID, p.VariantOf, p.Name, p.Description, p.IPN, p.Package, p.Keywords,
 		p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent, p.IsAssembly, p.IsPurchaseable,
 		p.IsTrackable, p.MinimumStock, p.DefaultLocationID,
 	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
@@ -190,12 +190,12 @@ func (r *PartRepo) Create(ctx context.Context, p *models.Part) error {
 
 func (r *PartRepo) Update(ctx context.Context, p *models.Part) error {
 	ct, err := r.pool.Exec(ctx, `
-		UPDATE parts SET category_id=$2, variant_of=$3, name=$4, description=$5, package=$6,
-			keywords=$7, barcode=$8, image_path=$9, is_template=$10, is_component=$11,
-			is_assembly=$12, is_purchaseable=$13, is_trackable=$14, minimum_stock=$15,
-			default_location_id=$16
+		UPDATE parts SET category_id=$2, variant_of=$3, name=$4, description=$5, ipn=$6, package=$7,
+			keywords=$8, barcode=$9, image_path=$10, is_template=$11, is_component=$12,
+			is_assembly=$13, is_purchaseable=$14, is_trackable=$15, minimum_stock=$16,
+			default_location_id=$17
 		WHERE id=$1`,
-		p.ID, p.CategoryID, p.VariantOf, p.Name, p.Description, p.Package,
+		p.ID, p.CategoryID, p.VariantOf, p.Name, p.Description, p.IPN, p.Package,
 		p.Keywords, p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent,
 		p.IsAssembly, p.IsPurchaseable, p.IsTrackable, p.MinimumStock,
 		p.DefaultLocationID)
