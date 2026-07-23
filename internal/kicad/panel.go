@@ -76,12 +76,23 @@ func DetectPanels(data []byte) ([]Panel, error) {
 			continue
 		}
 		s := string(b)
-		copies := (strings.Count(s, "(footprint ") + mainCount/2) / mainCount // round
-		// Treat a second PCB as a panel when it carries a KiKit signature (the
-		// panelizer stamps "KiKit" into the board) OR it holds clearly more than
-		// one copy of the design. This avoids mislabeling a distinct board as a
-		// 1-up "panel".
-		isKiKit := strings.Contains(strings.ToLower(s), "kikit")
+		total := strings.Count(s, "(footprint ")
+
+		// KiKit is the reliable signal. It stamps its frame parts with refs
+		// prefixed "KiKit_" (fiducials KiKit_FID_*, tooling KiKit_TO_*, …), and
+		// keeps each board copy's original refdes. Excluding those frame parts,
+		// the remaining footprints are exactly copies * (main board footprints),
+		// so the copy count is exact — no rounding fudge.
+		kikitFrame := strings.Count(s, `(property "Reference" "KiKit`)
+		isKiKit := kikitFrame > 0 || strings.Contains(strings.ToLower(s), "kikit")
+		boardFP := total - kikitFrame
+		if boardFP < 0 {
+			boardFP = total
+		}
+		copies := (boardFP + mainCount/2) / mainCount // exact for KiKit, rounded otherwise
+
+		// A second PCB is a panel when it's KiKit-panelized or clearly holds more
+		// than one copy of the design — never mislabel a distinct 1-up board.
 		if !isKiKit && copies < 2 {
 			continue
 		}
