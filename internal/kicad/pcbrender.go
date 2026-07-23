@@ -13,11 +13,11 @@ import (
 // renderer consumes, so a board generated from a .kicad_pcb renders identically
 // to a real iBOM. Cut #1: board outline + pads + footprint boxes (no silk yet).
 type PcbData struct {
-	EdgesBBox BBoxExtent        `json:"edges_bbox"`
-	Edges     []any             `json:"edges"`
-	Drawings  PcbDrawings       `json:"drawings"`
-	Footprints []PcbFootprint   `json:"footprints"`
-	Metadata  map[string]string `json:"metadata"`
+	EdgesBBox  BBoxExtent        `json:"edges_bbox"`
+	Edges      []any             `json:"edges"`
+	Drawings   PcbDrawings       `json:"drawings"`
+	Footprints []PcbFootprint    `json:"footprints"`
+	Metadata   map[string]string `json:"metadata"`
 }
 type BBoxExtent struct {
 	MinX float64 `json:"minx"`
@@ -33,9 +33,9 @@ type SilkSides struct {
 	B []any `json:"B"`
 }
 type PcbFootprint struct {
-	Ref   string  `json:"ref"`
-	Layer string  `json:"layer"`
-	Bbox  PcbBbox `json:"bbox"`
+	Ref   string   `json:"ref"`
+	Layer string   `json:"layer"`
+	Bbox  PcbBbox  `json:"bbox"`
 	Pads  []PcbPad `json:"pads"`
 }
 type PcbBbox struct {
@@ -110,16 +110,14 @@ func GeneratePcbData(data []byte) (*PcbData, error) {
 				pcb.Drawings.Silkscreen.B = append(pcb.Drawings.Silkscreen.B, silkElements(ch, identity)...)
 			}
 		case "footprint", "module":
-			// Silk always renders (logos/graphics live in excluded footprints);
-			// only real components join the BOM footprint list.
-			fp, sf, sb, ok := footprintRender(ch)
+			// Every footprint renders its pads and silk — mounting holes,
+			// fiducials and other board-only parts carry real copper and holes.
+			fp, sf, sb, _ := footprintRender(ch)
 			pcb.Drawings.Silkscreen.F = append(pcb.Drawings.Silkscreen.F, sf...)
 			pcb.Drawings.Silkscreen.B = append(pcb.Drawings.Silkscreen.B, sb...)
-			if ok {
-				pcb.Footprints = append(pcb.Footprints, fp)
-				for _, p := range fp.Pads {
-					acc(p.Pos[0], p.Pos[1])
-				}
+			pcb.Footprints = append(pcb.Footprints, fp)
+			for _, p := range fp.Pads {
+				acc(p.Pos[0], p.Pos[1])
 			}
 		}
 	}
@@ -245,7 +243,6 @@ func footprintRender(fp *node) (PcbFootprint, []any, []any, bool) {
 	out.Bbox.Pos = [2]float64{fat[0], fat[1]}
 	out.Bbox.Angle = fat[2]
 
-	excluded := false
 	silkF, silkB := []any{}, []any{}
 	addSilk := func(layer string, els ...any) {
 		if strings.HasPrefix(layer, "F.SilkS") {
@@ -256,13 +253,6 @@ func footprintRender(fp *node) (PcbFootprint, []any, []any, bool) {
 	}
 	for _, ch := range fp.Children {
 		switch ch.head() {
-		case "attr":
-			for _, a := range ch.Children[1:] {
-				switch strings.ToLower(a.Value) {
-				case "exclude_from_bom", "board_only":
-					excluded = true
-				}
-			}
 		case "property":
 			// Only the reference designator is a real silk label; other
 			// properties (Value, custom KiLib_* metadata) sit on silk layers too
@@ -281,11 +271,9 @@ func footprintRender(fp *node) (PcbFootprint, []any, []any, bool) {
 			}
 		}
 	}
-	if excluded || strings.HasPrefix(out.Ref, "#") {
-		return out, silkF, silkB, false // keep the silk (logos/graphics), drop from BOM
-	}
-
-	// Pads → absolute geometry + a local-frame bbox for highlighting.
+	// Pads → absolute geometry + a local-frame bbox for highlighting. Rendered
+	// for every footprint, even those excluded from the BOM (mounting holes,
+	// fiducials, board_only parts) — they carry real copper and drilled holes.
 	lminx, lminy := math.Inf(1), math.Inf(1)
 	lmaxx, lmaxy := math.Inf(-1), math.Inf(-1)
 	for _, ch := range fp.Children {
