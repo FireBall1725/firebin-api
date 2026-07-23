@@ -63,6 +63,12 @@ type Part struct {
 	VariantCount      int                `json:"variant_count,omitempty"`
 	ManufacturerParts []ManufacturerPart `json:"manufacturer_parts,omitempty"`
 	Alternatives      []PartAlternative  `json:"alternatives,omitempty"`
+
+	// Primary MPN/manufacturer and bin, for the parts list (from List's laterals).
+	PrimaryMPN          string     `json:"primary_mpn,omitempty"`
+	PrimaryManufacturer string     `json:"primary_manufacturer,omitempty"`
+	PrimaryLocation     *string    `json:"primary_location,omitempty"`
+	PrimaryLocationID   *uuid.UUID `json:"primary_location_id,omitempty"`
 }
 
 // PartAlternative is a similar part suggested by enrichment, linked to an
