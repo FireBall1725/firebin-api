@@ -20,9 +20,9 @@ func NewPartRepo(pool *pgxpool.Pool) *PartRepo { return &PartRepo{pool: pool} }
 
 // partCols selects the base part columns, casting numeric to float8 so pgx can
 // scan straight into float64.
-const partCols = `id, category_id, variant_of, name, description, ipn, package, keywords,
-	barcode, image_path, is_template, is_component, is_assembly, is_purchaseable,
-	is_trackable, minimum_stock::float8, default_location_id, created_at, updated_at`
+const partCols = `parts.id, parts.category_id, parts.variant_of, parts.name, parts.description, parts.ipn, parts.package, parts.keywords,
+	parts.barcode, parts.image_path, parts.is_template, parts.is_component, parts.is_assembly, parts.is_purchaseable,
+	parts.is_trackable, parts.minimum_stock::float8, parts.default_location_id, parts.created_at, parts.updated_at`
 
 func scanPart(row pgx.Row) (*models.Part, error) {
 	var p models.Part
@@ -51,30 +51,43 @@ type ListOptions struct {
 // sum so parts with no stock still appear.
 func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, error) {
 	q := strings.Builder{}
-	// total_stock rolls up a template's variants: stock held directly on the
-	// part plus stock on any of its variants (the model is one level deep).
+	// total_stock rolls up a template's variants. The laterals add the part's
+	// primary MPN + manufacturer and its primary bin (the location holding the
+	// most stock) so the parts list can show them without a per-row fetch.
 	q.WriteString(`SELECT ` + partCols + `,
 		COALESCE((SELECT SUM(quantity) FROM stock_items s
 			WHERE s.part_id = parts.id
 			   OR s.part_id IN (SELECT id FROM parts v WHERE v.variant_of = parts.id)), 0)::float8 AS total_stock,
-		(SELECT COUNT(*) FROM parts v WHERE v.variant_of = parts.id)::int AS variant_count
-		FROM parts WHERE 1=1`)
+		(SELECT COUNT(*) FROM parts v WHERE v.variant_of = parts.id)::int AS variant_count,
+		mpj.mpn, mpj.mfr, locj.name, locj.id
+		FROM parts
+		LEFT JOIN LATERAL (
+			SELECT mp.mpn, m.name AS mfr FROM manufacturer_parts mp
+			JOIN manufacturers m ON m.id = mp.manufacturer_id
+			WHERE mp.part_id = parts.id ORDER BY mp.created_at LIMIT 1
+		) mpj ON true
+		LEFT JOIN LATERAL (
+			SELECT l.id, l.name FROM stock_items s
+			JOIN storage_locations l ON l.id = s.location_id
+			WHERE s.part_id = parts.id AND s.quantity > 0 ORDER BY s.quantity DESC LIMIT 1
+		) locj ON true
+		WHERE 1=1`)
 	args := []any{}
 	if opts.TopLevel {
-		q.WriteString(` AND variant_of IS NULL`)
+		q.WriteString(` AND parts.variant_of IS NULL`)
 	}
 	if opts.CategoryID != nil {
 		args = append(args, *opts.CategoryID)
-		q.WriteString(` AND category_id = $` + itoa(len(args)))
+		q.WriteString(` AND parts.category_id = $` + itoa(len(args)))
 	}
 	if s := strings.TrimSpace(opts.Search); s != "" {
 		args = append(args, "%"+s+"%")
 		n := itoa(len(args))
 		// Match name/keywords, or any linked manufacturer part number.
-		q.WriteString(` AND (name ILIKE $` + n + ` OR keywords ILIKE $` + n +
+		q.WriteString(` AND (parts.name ILIKE $` + n + ` OR parts.keywords ILIKE $` + n +
 			` OR EXISTS (SELECT 1 FROM manufacturer_parts mp WHERE mp.part_id = parts.id AND mp.mpn ILIKE $` + n + `))`)
 	}
-	q.WriteString(` ORDER BY name LIMIT 500`)
+	q.WriteString(` ORDER BY parts.name LIMIT 500`)
 
 	rows, err := r.pool.Query(ctx, q.String(), args...)
 	if err != nil {
@@ -84,11 +97,24 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 
 	out := []models.Part{}
 	for rows.Next() {
-		p, err := scanPartWithTotals(rows)
-		if err != nil {
+		var p models.Part
+		var mpn, mfr, locName *string
+		if err := rows.Scan(
+			&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package, &p.Keywords,
+			&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
+			&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
+			&p.TotalStock, &p.VariantCount, &mpn, &mfr, &locName, &p.PrimaryLocationID,
+		); err != nil {
 			return nil, err
 		}
-		out = append(out, *p)
+		if mpn != nil {
+			p.PrimaryMPN = *mpn
+		}
+		if mfr != nil {
+			p.PrimaryManufacturer = *mfr
+		}
+		p.PrimaryLocation = locName
+		out = append(out, p)
 	}
 	return out, rows.Err()
 }
