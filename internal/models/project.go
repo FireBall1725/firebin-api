@@ -59,6 +59,11 @@ type Project struct {
 	BoardCount  int       `json:"board_count"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+
+	// Cover thumbnail for project cards: an uploaded image, else the first
+	// board's render. Computed on read.
+	CoverAssetID   *uuid.UUID `json:"cover_asset_id,omitempty"`
+	CoverAssetKind string     `json:"cover_asset_kind,omitempty"`
 }
 
 // Board is one PCB within a project, its BOM parsed from an uploaded source.

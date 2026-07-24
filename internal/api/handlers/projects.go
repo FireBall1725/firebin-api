@@ -748,6 +748,68 @@ func (h *Handler) UploadBoardAsset(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, rec)
 }
 
+// UploadProjectCover sets a project's cover image from an uploaded image,
+// replacing any previous cover.
+func (h *Handler) UploadProjectCover(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseMultipartForm(64 << 20); err != nil {
+		respond.Error(w, http.StatusBadRequest, "expected a multipart file upload")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "missing 'file' field")
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 64<<20))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "could not read upload")
+		return
+	}
+	name := header.Filename
+	mime := imageMime(name)
+	if mime == "" {
+		respond.Error(w, http.StatusUnprocessableEntity, "the cover must be an image (.png/.jpg/.svg…)")
+		return
+	}
+
+	old, _ := h.Projects.CoverImageID(r.Context(), projectID)
+	rec := &models.ProjectAsset{ProjectID: projectID, Name: name, Kind: "image", Mime: mime}
+	if err := h.Projects.CreateAsset(r.Context(), rec, data); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not save the cover")
+		return
+	}
+	if err := h.Projects.SetProjectCover(r.Context(), projectID, &rec.ID); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not set the cover")
+		return
+	}
+	if old != nil {
+		_ = h.Projects.DeleteAsset(r.Context(), *old)
+	}
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusCreated, rec)
+}
+
+// RemoveProjectCover clears a project's uploaded cover (the card falls back to
+// the first board's render).
+func (h *Handler) RemoveProjectCover(w http.ResponseWriter, r *http.Request) {
+	projectID, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	old, _ := h.Projects.CoverImageID(r.Context(), projectID)
+	_ = h.Projects.SetProjectCover(r.Context(), projectID, nil)
+	if old != nil {
+		_ = h.Projects.DeleteAsset(r.Context(), *old)
+	}
+	h.Bus.Publish("projects")
+	respond.JSON(w, http.StatusOK, map[string]string{"status": "removed"})
+}
+
 // imageMime returns the image MIME type for a filename, or "" if it isn't one.
 func imageMime(name string) string {
 	switch strings.ToLower(filepath.Ext(name)) {

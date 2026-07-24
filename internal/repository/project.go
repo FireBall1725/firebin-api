@@ -23,8 +23,10 @@ func NewProjectRepo(pool *pgxpool.Pool) *ProjectRepo { return &ProjectRepo{pool:
 func (r *ProjectRepo) List(ctx context.Context) ([]models.Project, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT p.id, p.name, COALESCE(p.description, ''), p.tags, p.created_at, p.updated_at,
-		       (SELECT COUNT(*) FROM project_boards b WHERE b.project_id = p.id)
-		FROM projects p ORDER BY p.updated_at DESC`)
+		       (SELECT COUNT(*) FROM project_boards b WHERE b.project_id = p.id),
+		       cov.id, cov.kind
+		FROM projects p `+coverJoin+`
+		ORDER BY p.updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -32,13 +34,28 @@ func (r *ProjectRepo) List(ctx context.Context) ([]models.Project, error) {
 	out := []models.Project{}
 	for rows.Next() {
 		var p models.Project
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Tags, &p.CreatedAt, &p.UpdatedAt, &p.BoardCount); err != nil {
+		var kind *string
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Tags, &p.CreatedAt, &p.UpdatedAt, &p.BoardCount, &p.CoverAssetID, &kind); err != nil {
 			return nil, err
+		}
+		if kind != nil {
+			p.CoverAssetKind = *kind
 		}
 		out = append(out, p)
 	}
 	return out, rows.Err()
 }
+
+// coverJoin resolves a project's cover thumbnail: its uploaded cover image, else
+// the first board's render (a real iBOM preferred over the generated one).
+const coverJoin = `
+	LEFT JOIN LATERAL (
+		SELECT a.id, a.kind FROM project_assets a
+		WHERE a.id = p.cover_image_id
+		   OR (p.cover_image_id IS NULL AND a.project_id = p.id AND a.kind IN ('ibom', 'pcbrender'))
+		ORDER BY (a.id = p.cover_image_id) DESC, (a.kind = 'ibom') DESC, a.created_at
+		LIMIT 1
+	) cov ON true`
 
 func (r *ProjectRepo) Create(ctx context.Context, name, description string, tags []string) (*models.Project, error) {
 	var p models.Project
@@ -55,15 +72,20 @@ func (r *ProjectRepo) Create(ctx context.Context, name, description string, tags
 // Get returns a project with its boards (each carrying a line count).
 func (r *ProjectRepo) Get(ctx context.Context, id uuid.UUID) (*models.Project, error) {
 	var p models.Project
+	var kind *string
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, name, COALESCE(description, ''), tags, created_at, updated_at
-		FROM projects WHERE id = $1`, id).
-		Scan(&p.ID, &p.Name, &p.Description, &p.Tags, &p.CreatedAt, &p.UpdatedAt)
+		SELECT p.id, p.name, COALESCE(p.description, ''), p.tags, p.created_at, p.updated_at, cov.id, cov.kind
+		FROM projects p `+coverJoin+`
+		WHERE p.id = $1`, id).
+		Scan(&p.ID, &p.Name, &p.Description, &p.Tags, &p.CreatedAt, &p.UpdatedAt, &p.CoverAssetID, &kind)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
+	}
+	if kind != nil {
+		p.CoverAssetKind = *kind
 	}
 	boards, err := r.ListBoards(ctx, id)
 	if err != nil {
@@ -108,6 +130,22 @@ func normTags(tags []string) []string {
 
 func (r *ProjectRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.pool.Exec(ctx, `DELETE FROM projects WHERE id = $1`, id)
+	return err
+}
+
+// CoverImageID returns a project's uploaded cover image asset, if any.
+func (r *ProjectRepo) CoverImageID(ctx context.Context, projectID uuid.UUID) (*uuid.UUID, error) {
+	var id *uuid.UUID
+	err := r.pool.QueryRow(ctx, `SELECT cover_image_id FROM projects WHERE id = $1`, projectID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	return id, err
+}
+
+// SetProjectCover points a project's cover at an asset (nil clears it).
+func (r *ProjectRepo) SetProjectCover(ctx context.Context, projectID uuid.UUID, assetID *uuid.UUID) error {
+	_, err := r.pool.Exec(ctx, `UPDATE projects SET cover_image_id = $2 WHERE id = $1`, projectID, assetID)
 	return err
 }
 
