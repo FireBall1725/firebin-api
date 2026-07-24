@@ -19,8 +19,9 @@ import (
 )
 
 type projectRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
 }
 
 func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
@@ -41,7 +42,7 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	p, err := h.Projects.Create(r.Context(), strings.TrimSpace(req.Name), strings.TrimSpace(req.Description))
+	p, err := h.Projects.Create(r.Context(), strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.Tags)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not create project")
 		return
@@ -76,7 +77,7 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	if !respond.Decode(w, r, &req) {
 		return
 	}
-	p, err := h.Projects.Update(r.Context(), id, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description))
+	p, err := h.Projects.Update(r.Context(), id, strings.TrimSpace(req.Name), strings.TrimSpace(req.Description), req.Tags)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not update project")
 		return
@@ -529,8 +530,9 @@ func (h *Handler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 }
 
 type boardUpdate struct {
-	Name   string `json:"name"`
-	Copies int    `json:"copies"`
+	Name     string `json:"name"`
+	Revision string `json:"revision"`
+	Copies   int    `json:"copies"`
 }
 
 // UpdateBoard renames a board or corrects a panel's copy count.
@@ -543,7 +545,7 @@ func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request) {
 	if !respond.Decode(w, r, &req) {
 		return
 	}
-	b, err := h.Projects.UpdateBoard(r.Context(), id, strings.TrimSpace(req.Name), req.Copies)
+	b, err := h.Projects.UpdateBoard(r.Context(), id, strings.TrimSpace(req.Name), strings.TrimSpace(req.Revision), req.Copies)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not update board")
 		return

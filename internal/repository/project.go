@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/firelabsca/firebin-api/internal/models"
 	"github.com/google/uuid"
@@ -21,7 +22,7 @@ func NewProjectRepo(pool *pgxpool.Pool) *ProjectRepo { return &ProjectRepo{pool:
 
 func (r *ProjectRepo) List(ctx context.Context) ([]models.Project, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT p.id, p.name, COALESCE(p.description, ''), p.created_at, p.updated_at,
+		SELECT p.id, p.name, COALESCE(p.description, ''), p.tags, p.created_at, p.updated_at,
 		       (SELECT COUNT(*) FROM project_boards b WHERE b.project_id = p.id)
 		FROM projects p ORDER BY p.updated_at DESC`)
 	if err != nil {
@@ -31,7 +32,7 @@ func (r *ProjectRepo) List(ctx context.Context) ([]models.Project, error) {
 	out := []models.Project{}
 	for rows.Next() {
 		var p models.Project
-		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt, &p.BoardCount); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Tags, &p.CreatedAt, &p.UpdatedAt, &p.BoardCount); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -39,12 +40,12 @@ func (r *ProjectRepo) List(ctx context.Context) ([]models.Project, error) {
 	return out, rows.Err()
 }
 
-func (r *ProjectRepo) Create(ctx context.Context, name, description string) (*models.Project, error) {
+func (r *ProjectRepo) Create(ctx context.Context, name, description string, tags []string) (*models.Project, error) {
 	var p models.Project
 	err := r.pool.QueryRow(ctx, `
-		INSERT INTO projects (name, description) VALUES ($1, NULLIF($2, ''))
-		RETURNING id, name, COALESCE(description, ''), created_at, updated_at`,
-		name, description).Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt)
+		INSERT INTO projects (name, description, tags) VALUES ($1, NULLIF($2, ''), $3)
+		RETURNING id, name, COALESCE(description, ''), tags, created_at, updated_at`,
+		name, description, normTags(tags)).Scan(&p.ID, &p.Name, &p.Description, &p.Tags, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -55,9 +56,9 @@ func (r *ProjectRepo) Create(ctx context.Context, name, description string) (*mo
 func (r *ProjectRepo) Get(ctx context.Context, id uuid.UUID) (*models.Project, error) {
 	var p models.Project
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, name, COALESCE(description, ''), created_at, updated_at
+		SELECT id, name, COALESCE(description, ''), tags, created_at, updated_at
 		FROM projects WHERE id = $1`, id).
-		Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt)
+		Scan(&p.ID, &p.Name, &p.Description, &p.Tags, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -73,12 +74,12 @@ func (r *ProjectRepo) Get(ctx context.Context, id uuid.UUID) (*models.Project, e
 	return &p, nil
 }
 
-func (r *ProjectRepo) Update(ctx context.Context, id uuid.UUID, name, description string) (*models.Project, error) {
+func (r *ProjectRepo) Update(ctx context.Context, id uuid.UUID, name, description string, tags []string) (*models.Project, error) {
 	var p models.Project
 	err := r.pool.QueryRow(ctx, `
-		UPDATE projects SET name = $2, description = NULLIF($3, '') WHERE id = $1
-		RETURNING id, name, COALESCE(description, ''), created_at, updated_at`,
-		id, name, description).Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt)
+		UPDATE projects SET name = $2, description = NULLIF($3, ''), tags = $4 WHERE id = $1
+		RETURNING id, name, COALESCE(description, ''), tags, created_at, updated_at`,
+		id, name, description, normTags(tags)).Scan(&p.ID, &p.Name, &p.Description, &p.Tags, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -86,6 +87,23 @@ func (r *ProjectRepo) Update(ctx context.Context, id uuid.UUID, name, descriptio
 		return nil, err
 	}
 	return &p, nil
+}
+
+// normTags trims, drops blanks, dedupes (case-insensitive), and never returns nil
+// (so it stores as an empty array, not NULL).
+func normTags(tags []string) []string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, t := range tags {
+		t = strings.TrimSpace(t)
+		k := strings.ToLower(t)
+		if t == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, t)
+	}
+	return out
 }
 
 func (r *ProjectRepo) Delete(ctx context.Context, id uuid.UUID) error {
@@ -140,17 +158,17 @@ func (r *ProjectRepo) CreateBoard(ctx context.Context, b *models.Board) error {
 			&b.SourceFormat, &b.Kind, &b.Copies, &b.Position, &b.CreatedAt, &b.UpdatedAt)
 }
 
-// UpdateBoard changes a board's name and copy count (the panel N-up).
-func (r *ProjectRepo) UpdateBoard(ctx context.Context, id uuid.UUID, name string, copies int) (*models.Board, error) {
+// UpdateBoard changes a board's name, revision, and copy count (the panel N-up).
+func (r *ProjectRepo) UpdateBoard(ctx context.Context, id uuid.UUID, name, revision string, copies int) (*models.Board, error) {
 	if copies < 1 {
 		copies = 1
 	}
 	var b models.Board
 	err := r.pool.QueryRow(ctx, `
-		UPDATE project_boards SET name = COALESCE(NULLIF($2, ''), name), copies = $3 WHERE id = $1
-		RETURNING id, project_id, name, COALESCE(description, ''),
+		UPDATE project_boards SET name = COALESCE(NULLIF($2, ''), name), revision = $3, copies = $4 WHERE id = $1
+		RETURNING id, project_id, name, COALESCE(description, ''), revision,
 		          COALESCE(source_filename, ''), source_format, kind, copies, position, created_at, updated_at`,
-		id, name, copies).Scan(&b.ID, &b.ProjectID, &b.Name, &b.Description, &b.SourceFilename,
+		id, name, revision, copies).Scan(&b.ID, &b.ProjectID, &b.Name, &b.Description, &b.Revision, &b.SourceFilename,
 		&b.SourceFormat, &b.Kind, &b.Copies, &b.Position, &b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
