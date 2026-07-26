@@ -1,8 +1,21 @@
-# firebin-api
+<p align="center">
+  <img src=".github/assets/firebin-logo.png" width="88" alt="FireBin" />
+</p>
+<h1 align="center">firebin-api</h1>
+<p align="center">
+  The <a href="https://github.com/FireBall1725/firebin">FireBin</a> backend, a self-hosted electronics parts inventory.
+</p>
+<p align="center">
+  <a href="https://github.com/FireBall1725/firebin">Umbrella</a> ·
+  <a href="https://github.com/FireBall1725/firebin-web">Web</a> ·
+  <a href="https://fireball1725.github.io/firebin-api/">API reference</a>
+</p>
+
+---
 
 The FireBin backend and source of truth. It is a Go 1.26 service backed by Postgres 16, speaking REST over `/api/v1` on port 8080. The web client and every future client talk only to this API; it owns the schema, the auth, and the background jobs.
 
-FireBin is a self-hosted electronics parts inventory. Track quantity, package, brand, location, and vendor pricing across your parts, scan the Data Matrix on a Digi-Key or Mouser bag to enrich a part in one call, and generate bin and part labels. This repo is one of three: `firebin-api` (here), `firebin-web` (the React client), and `firebin` (compose files and self-host docs).
+Track quantity, package, brand, location, and vendor pricing across your parts, scan the Data Matrix on a Digi-Key or Mouser bag to enrich a part in one call, and generate bin and part labels. This repo is one of three: `firebin-api` (here), [`firebin-web`](https://github.com/FireBall1725/firebin-web) (the React client), and [`firebin`](https://github.com/FireBall1725/firebin) (compose files and self-host docs).
 
 FireBin is in alpha.
 
@@ -71,3 +84,10 @@ See [CLAUDE.md](CLAUDE.md) for the architecture, the conventions, and the checks
 ## Licence
 
 AGPL-3.0-only. See [LICENSE](LICENSE).
+
+---
+
+<p align="center">
+  <a href="https://fireball1725.ca"><img src=".github/assets/fireball-logo.png" width="38" alt="FireBall1725" /></a>
+</p>
+<p align="center">Built by <a href="https://fireball1725.ca">FireBall1725</a> in Ontario, Canada 🇨🇦</p>
