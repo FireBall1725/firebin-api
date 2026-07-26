@@ -20,8 +20,11 @@ import (
 	_ "time/tzdata"
 
 	"github.com/firelabsca/firebin-api/internal/api"
+	"github.com/firelabsca/firebin-api/internal/api/handlers"
+	"github.com/firelabsca/firebin-api/internal/auth"
 	"github.com/firelabsca/firebin-api/internal/config"
 	"github.com/firelabsca/firebin-api/internal/db"
+	"github.com/firelabsca/firebin-api/internal/jobs"
 	"github.com/firelabsca/firebin-api/internal/version"
 )
 
@@ -58,10 +61,29 @@ func main() {
 	defer pool.Close()
 	slog.Info("database connected")
 
+	// River's own schema migrations, alongside FireBin's.
+	if err := jobs.Migrate(baseCtx, pool); err != nil {
+		slog.Error("river migration failed", "error", err)
+		os.Exit(1)
+	}
+
+	jwt := auth.NewJWTService(cfg.JWTSecret, cfg.JWTAccessTTL)
+	h, err := handlers.New(cfg, pool, jwt)
+	if err != nil {
+		slog.Error("handler init failed", "error", err)
+		os.Exit(1)
+	}
+	h.Jobs.SetRetention(cfg.TaskRetention)
+	if err := h.Jobs.Start(baseCtx); err != nil {
+		slog.Error("job workers failed to start", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("job workers started")
+
 	addr := cfg.Host + ":" + cfg.Port
 	srv := &http.Server{
 		Addr:           addr,
-		Handler:        api.NewRouter(pool, cfg),
+		Handler:        api.NewRouter(h),
 		ReadTimeout:    15 * time.Second,
 		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
@@ -81,11 +103,15 @@ func main() {
 	<-quit
 
 	slog.Info("shutting down")
-	cancel()
 	shutCtx, shutCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutCancel()
 	if err := srv.Shutdown(shutCtx); err != nil {
 		slog.Error("forced shutdown", "error", err)
 	}
+	// Drain in-flight jobs before tearing down the context and pool.
+	if err := h.Jobs.Stop(shutCtx); err != nil {
+		slog.Warn("job workers stop", "error", err)
+	}
+	cancel()
 	slog.Info("stopped")
 }

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/firelabsca/firebin-api/internal/auth"
 	"github.com/firelabsca/firebin-api/internal/api/respond"
+	"github.com/firelabsca/firebin-api/internal/auth"
 	"github.com/firelabsca/firebin-api/internal/repository"
 	"github.com/google/uuid"
 )
@@ -20,6 +20,7 @@ const (
 	ctxUserID ctxKey = iota
 	ctxIsAdmin
 	ctxScopes
+	ctxRole
 )
 
 // Authenticator validates a Bearer credential — either a JWT access token or an
@@ -78,11 +79,32 @@ func (a *Authenticator) Require(next http.Handler) http.Handler {
 			return
 		}
 
+		// Role is authoritative (loaded fresh each request, so a demotion or
+		// deactivation takes effect immediately); admin is derived from it.
 		ctx := context.WithValue(r.Context(), ctxUserID, userID)
-		ctx = context.WithValue(ctx, ctxIsAdmin, u.IsInstanceAdmin)
+		ctx = context.WithValue(ctx, ctxRole, u.Role)
+		ctx = context.WithValue(ctx, ctxIsAdmin, u.Role == "admin")
 		ctx = context.WithValue(ctx, ctxScopes, scopes)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// RequireWriter wraps Require and rejects viewers on any state-changing method,
+// so read-only accounts can browse and export but never mutate. Safe methods and
+// a small self-service allowlist (changing your own password) pass through.
+func (a *Authenticator) RequireWriter(next http.Handler) http.Handler {
+	return a.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			next.ServeHTTP(w, r)
+			return
+		}
+		if Role(r.Context()) == "viewer" && !strings.HasSuffix(r.URL.Path, "/users/me/password") {
+			respond.Error(w, http.StatusForbidden, "read-only account")
+			return
+		}
+		next.ServeHTTP(w, r)
+	}))
 }
 
 // RequireAdmin wraps Require and additionally rejects non-admin callers.
@@ -119,5 +141,11 @@ func UserID(ctx context.Context) uuid.UUID {
 // IsAdmin reports whether the authenticated caller is an instance admin.
 func IsAdmin(ctx context.Context) bool {
 	v, _ := ctx.Value(ctxIsAdmin).(bool)
+	return v
+}
+
+// Role returns the authenticated caller's role (admin | member | viewer), or "".
+func Role(ctx context.Context) string {
+	v, _ := ctx.Value(ctxRole).(string)
 	return v
 }

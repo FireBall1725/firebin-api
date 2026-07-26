@@ -56,6 +56,12 @@ func New(creds CredsFunc) *Provider {
 	}
 }
 
+// Name is the stable provider id.
+func (p *Provider) Name() string { return "nexar" }
+
+// Label is the human-facing provider name.
+func (p *Provider) Label() string { return "Nexar / Octopart" }
+
 // Configured reports whether credentials are currently present.
 func (p *Provider) Configured(ctx context.Context) bool {
 	c := p.creds(ctx)
@@ -229,8 +235,8 @@ type nexarPart struct {
 			Name string `json:"name"`
 		} `json:"company"`
 		Offers []struct {
-			SKU    string  `json:"sku"`
-			MOQ    int     `json:"moq"`
+			SKU    string `json:"sku"`
+			MOQ    int    `json:"moq"`
 			Prices []struct {
 				Quantity int     `json:"quantity"`
 				Price    float64 `json:"price"`

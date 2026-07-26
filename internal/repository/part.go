@@ -83,8 +83,9 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 	if s := strings.TrimSpace(opts.Search); s != "" {
 		args = append(args, "%"+s+"%")
 		n := itoa(len(args))
-		// Match name/keywords, or any linked manufacturer part number.
+		// Match name/keywords/IPN, or any linked manufacturer part number.
 		q.WriteString(` AND (parts.name ILIKE $` + n + ` OR parts.keywords ILIKE $` + n +
+			` OR parts.ipn ILIKE $` + n +
 			` OR EXISTS (SELECT 1 FROM manufacturer_parts mp WHERE mp.part_id = parts.id AND mp.mpn ILIKE $` + n + `))`)
 	}
 	q.WriteString(` ORDER BY parts.name LIMIT 500`)
@@ -175,6 +176,32 @@ func (r *PartRepo) Get(ctx context.Context, id uuid.UUID) (*models.Part, error) 
 	).Scan(&p.TotalStock); err != nil {
 		return nil, err
 	}
+
+	// Primary MPN/manufacturer and primary bin (the location holding the most
+	// stock), mirroring List — so the detail view and label templates can bind
+	// {mpn}/{manufacturer}/{location}. Non-critical: leave blank if unavailable.
+	var mpn, mfr, locName *string
+	if err := r.pool.QueryRow(ctx, `
+		SELECT mpj.mpn, mpj.mfr, locj.name, locj.id
+		FROM (SELECT $1::uuid AS pid) base
+		LEFT JOIN LATERAL (
+			SELECT mp.mpn, m.name AS mfr FROM manufacturer_parts mp
+			JOIN manufacturers m ON m.id = mp.manufacturer_id
+			WHERE mp.part_id = base.pid ORDER BY mp.created_at LIMIT 1
+		) mpj ON true
+		LEFT JOIN LATERAL (
+			SELECT l.id, l.name FROM stock_items s
+			JOIN storage_locations l ON l.id = s.location_id
+			WHERE s.part_id = base.pid AND s.quantity > 0 ORDER BY s.quantity DESC LIMIT 1
+		) locj ON true`, id).Scan(&mpn, &mfr, &locName, &p.PrimaryLocationID); err == nil {
+		if mpn != nil {
+			p.PrimaryMPN = *mpn
+		}
+		if mfr != nil {
+			p.PrimaryManufacturer = *mfr
+		}
+		p.PrimaryLocation = locName
+	}
 	params, err := r.GetParameters(ctx, id)
 	if err != nil {
 		return nil, err
@@ -249,7 +276,7 @@ func (r *PartRepo) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *PartRepo) GetParameters(ctx context.Context, partID uuid.UUID) ([]models.PartParameter, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT pp.id, pp.template_id, pt.name, pt.units, pp.value
+		SELECT pp.id, pp.template_id, pt.name, COALESCE(NULLIF(pp.units, ''), pt.units), pp.value
 		FROM part_parameters pp
 		JOIN parameter_templates pt ON pt.id = pp.template_id
 		WHERE pp.part_id = $1
@@ -289,7 +316,9 @@ func (r *PartRepo) ListParameterTemplates(ctx context.Context) ([]models.Paramet
 }
 
 // SetParameter upserts a parameter value on a part, creating the parameter
-// template (by name) on first use.
+// template (by name) on first use. Units are stored per-part on part_parameters
+// (a shared template can't hold both nF and µF); the template keeps the unit only
+// as a typeahead default.
 func (r *PartRepo) SetParameter(ctx context.Context, partID uuid.UUID, name string, units *string, value string) error {
 	var templateID uuid.UUID
 	err := r.pool.QueryRow(ctx, `
@@ -299,11 +328,48 @@ func (r *PartRepo) SetParameter(ctx context.Context, partID uuid.UUID, name stri
 	if err != nil {
 		return err
 	}
+	u := ""
+	if units != nil {
+		u = *units
+	}
 	_, err = r.pool.Exec(ctx, `
-		INSERT INTO part_parameters (part_id, template_id, value) VALUES ($1, $2, $3)
-		ON CONFLICT (part_id, template_id) DO UPDATE SET value = EXCLUDED.value`,
-		partID, templateID, value)
+		INSERT INTO part_parameters (part_id, template_id, value, units) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (part_id, template_id) DO UPDATE SET value = EXCLUDED.value, units = EXCLUDED.units`,
+		partID, templateID, value, u)
 	return err
+}
+
+// SetPartImage stores (replacing any existing) a part's uploaded image and points
+// the part's image_path at the serving endpoint, in one transaction.
+func (r *PartRepo) SetPartImage(ctx context.Context, partID uuid.UUID, mime string, data []byte) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO part_images (part_id, mime, size, content) VALUES ($1, $2, $3, $4)
+		ON CONFLICT (part_id) DO UPDATE SET mime = EXCLUDED.mime, size = EXCLUDED.size, content = EXCLUDED.content, created_at = now()`,
+		partID, mime, len(data), data); err != nil {
+		return err
+	}
+	path := "/api/v1/parts/" + partID.String() + "/image"
+	if _, err := tx.Exec(ctx, `UPDATE parts SET image_path = $2, updated_at = now() WHERE id = $1`, partID, path); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// GetPartImage returns a part's uploaded image bytes and mime, if one exists.
+func (r *PartRepo) GetPartImage(ctx context.Context, partID uuid.UUID) (mime string, content []byte, found bool, err error) {
+	err = r.pool.QueryRow(ctx, `SELECT mime, content FROM part_images WHERE part_id = $1`, partID).Scan(&mime, &content)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil, false, nil
+	}
+	if err != nil {
+		return "", nil, false, err
+	}
+	return mime, content, true, nil
 }
 
 // itoa converts a small positive int to its decimal string for placeholder

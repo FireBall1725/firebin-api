@@ -415,9 +415,10 @@ func (h *Handler) PreviewBoard(w http.ResponseWriter, r *http.Request) {
 		}
 		if assets, err := kicad.ExtractAssets(data); err == nil {
 			for _, a := range assets {
-				if a.Kind == "ibom" {
+				switch a.Kind {
+				case "ibom":
 					ibom = a.Name
-				} else if a.Kind == "image" {
+				case "image":
 					renders = append(renders, a.Name)
 				}
 			}

@@ -7,7 +7,7 @@ package models
 // (Nexar/Octopart, Digi-Key, …). Used to prefill the scan create-flow.
 type EnrichedPart struct {
 	MPN          string              `json:"mpn"`
-	Name         string              `json:"name"`         // suggested part name
+	Name         string              `json:"name"` // suggested part name
 	Description  string              `json:"description"`
 	Manufacturer string              `json:"manufacturer"`
 	Category     string              `json:"category"`
@@ -34,7 +34,9 @@ type EnrichedParameter struct {
 }
 
 type EnrichedSupplier struct {
-	Name   string       `json:"name"`
-	SKU    string       `json:"sku"`
-	Prices []PriceBreak `json:"prices"`
+	Name      string       `json:"name"`
+	SKU       string       `json:"sku"`
+	URL       string       `json:"url,omitempty"`       // the vendor's product page
+	Packaging string       `json:"packaging,omitempty"` // e.g. "Cut Tape (CT)", "Tape & Reel (TR)"
+	Prices    []PriceBreak `json:"prices"`
 }

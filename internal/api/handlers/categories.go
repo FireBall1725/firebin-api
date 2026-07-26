@@ -80,6 +80,10 @@ func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusNotFound, "category not found")
 		return
 	}
+	if errors.Is(err, repository.ErrCategoryNotEmpty) {
+		respond.Error(w, http.StatusConflict, "category still has parts — move or remove them first")
+		return
+	}
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not delete category")
 		return
