@@ -14,6 +14,10 @@ import (
 
 const backupFormatVersion = 1
 
+// maxImportBytes caps the import request body. An export is the whole instance as
+// JSON, so this is far above the default endpoint cap; it still bounds memory use.
+const maxImportBytes = 256 << 20 // 256 MiB
+
 type exportFile struct {
 	Format  int                        `json:"format"`
 	App     string                     `json:"app"`
@@ -65,7 +69,9 @@ func (h *Handler) ExportData(w http.ResponseWriter, r *http.Request) {
 // @Router      /import  [post]
 func (h *Handler) ImportData(w http.ResponseWriter, r *http.Request) {
 	var in exportFile
-	if !respond.Decode(w, r, &in) {
+	// A full-instance export is the whole database as JSON and easily exceeds the
+	// default 1 MiB body cap, so allow a much larger body for this endpoint only.
+	if !respond.DecodeMax(w, r, &in, maxImportBytes) {
 		return
 	}
 	if in.App != "firebin" || in.Format != backupFormatVersion {

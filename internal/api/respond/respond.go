@@ -47,10 +47,22 @@ func ErrorCode(w http.ResponseWriter, status int, code, msg string) {
 	JSON(w, status, ErrorBody{Error: msg, Code: code})
 }
 
+// DefaultMaxBody is the request-body cap for JSON endpoints: enough for any
+// normal payload, small enough to be a sane guard against oversized bodies.
+const DefaultMaxBody = 1 << 20 // 1 MiB
+
 // Decode reads and validates a JSON request body into dst. It rejects unknown
-// fields and bodies larger than 1 MiB. Returns false and writes a 400 on error.
+// fields and bodies larger than DefaultMaxBody. Returns false and writes a 400
+// on error.
 func Decode(w http.ResponseWriter, r *http.Request, dst any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	return DecodeMax(w, r, dst, DefaultMaxBody)
+}
+
+// DecodeMax is Decode with an explicit maximum body size. Use it for the few
+// endpoints that legitimately accept large payloads, such as a full-instance
+// import, rather than raising the default for every endpoint.
+func DecodeMax(w http.ResponseWriter, r *http.Request, dst any, maxBytes int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
