@@ -54,7 +54,9 @@ CI runs the same three against a Postgres service, plus golangci-lint, on every 
 
 ## API documentation
 
-The API documents itself. Start the server and open `http://localhost:8080/api/docs` for the Scalar reference, or fetch the raw OpenAPI spec at `/api/openapi.json`. Both are public, no token needed.
+The reference is published at **https://fireball1725.github.io/firebin-api/**.
+
+The API also documents itself at runtime. Start the server and open `http://localhost:8080/api/docs` for the Scalar reference, or fetch the raw OpenAPI spec at `/api/openapi.json`. Both are public, no token needed.
 
 The spec is generated from swaggo annotations on the handlers. Regenerate it with `make docs` (install the CLI once: `go install github.com/swaggo/swag/cmd/swag@v1.16.4`). The generated `docs/` package is committed, and the `API Docs` workflow publishes it to GitHub Pages on a push that changes the spec.
 
