@@ -41,7 +41,7 @@ func qtyStr(q float64) string { return strconv.FormatFloat(q, 'f', -1, 64) }
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true   "identifier"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.StockItem
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /stock-items/{id}  [get]
@@ -69,7 +69,7 @@ func (h *Handler) GetStockLot(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       barcode  query     string                  true   "barcode"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.StockItem
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /stock/scan  [get]
 func (h *Handler) ScanStockLot(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +106,7 @@ type splitStockRequest struct {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.StockItem
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /stock/split  [post]
@@ -144,7 +144,7 @@ type mergeStockRequest struct {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  map[string]string
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /stock/merge  [post]
@@ -177,7 +177,7 @@ type relocateStockRequest struct {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.StockItem
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /stock/relocate  [post]
@@ -213,7 +213,7 @@ type lotAdjustRequest struct {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.StockItem
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /stock/lot-adjust  [post]
@@ -352,7 +352,7 @@ type printStockLabelsRequest struct {
 // @Accept      json
 // @Produce     application/pdf
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {file}    binary
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /stock/labels/print  [post]

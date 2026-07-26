@@ -147,7 +147,7 @@ type printLocationLabelsRequest struct {
 // @Accept      json
 // @Produce     application/pdf
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {file}    binary
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /locations/labels/print  [post]

@@ -81,7 +81,7 @@ func (h *Handler) CreatePAT(w http.ResponseWriter, r *http.Request) {
 // @Tags        tokens
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.APIToken
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /tokens  [get]
 func (h *Handler) ListPATs(w http.ResponseWriter, r *http.Request) {
@@ -103,7 +103,7 @@ func (h *Handler) ListPATs(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true   "token ID"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]string
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /tokens/{id}  [delete]

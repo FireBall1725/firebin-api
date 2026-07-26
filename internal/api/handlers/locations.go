@@ -26,7 +26,7 @@ type locationRequest struct {
 // @Tags        locations
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.StorageLocation
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /locations  [get]
 func (h *Handler) ListLocations(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +44,7 @@ func (h *Handler) ListLocations(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true   "identifier"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.StorageLocation
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /locations/{id}  [get]
@@ -73,7 +73,7 @@ func (h *Handler) GetLocation(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       barcode  query     string                  true   "barcode"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.StorageLocation
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /locations/scan  [get]
 func (h *Handler) ScanLocation(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +101,7 @@ func (h *Handler) ScanLocation(w http.ResponseWriter, r *http.Request) {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.StorageLocation
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /locations  [post]
@@ -131,7 +131,7 @@ func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id       path      string                  true   "identifier"
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.StorageLocation
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}

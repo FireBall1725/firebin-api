@@ -50,8 +50,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "type": "file"
                         }
                     },
                     "401": {
@@ -198,7 +197,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -332,8 +333,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Board"
                         }
                     },
                     "401": {
@@ -439,8 +439,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Board"
                         }
                     },
                     "400": {
@@ -505,8 +504,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.ProjectAsset"
                         }
                     },
                     "400": {
@@ -574,8 +572,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.BOMLine"
                         }
                     },
                     "400": {
@@ -636,8 +633,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.PickList"
                         }
                     },
                     "401": {
@@ -678,8 +674,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Category"
                             }
                         }
                     },
@@ -725,8 +720,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Category"
                         }
                     },
                     "400": {
@@ -775,7 +769,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
@@ -834,8 +830,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Category"
                         }
                     },
                     "400": {
@@ -1169,8 +1164,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelMedia"
                             }
                         }
                     },
@@ -1216,8 +1210,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelMedia"
                         }
                     },
                     "400": {
@@ -1320,8 +1313,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "type": "file"
                         }
                     },
                     "400": {
@@ -1375,8 +1367,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "type": "file"
                         }
                     },
                     "400": {
@@ -1472,8 +1463,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelTemplate"
                             }
                         }
                     },
@@ -1519,8 +1509,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelTemplate"
                         }
                     },
                     "400": {
@@ -1628,8 +1617,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelTemplate"
                         }
                     },
                     "400": {
@@ -1744,8 +1732,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.BOMLine"
                         }
                     },
                     "400": {
@@ -1793,8 +1780,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation"
                             }
                         }
                     },
@@ -1840,8 +1826,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation"
                         }
                     },
                     "400": {
@@ -1895,8 +1880,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "type": "file"
                         }
                     },
                     "400": {
@@ -1999,8 +1983,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation"
                         }
                     },
                     "401": {
@@ -2041,8 +2024,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation"
                         }
                     },
                     "401": {
@@ -2148,8 +2130,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation"
                         }
                     },
                     "400": {
@@ -2206,8 +2187,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem"
                             }
                         }
                     },
@@ -2257,7 +2237,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
@@ -2317,7 +2299,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -2386,7 +2370,9 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -2434,8 +2420,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Manufacturer"
                             }
                         }
                     },
@@ -2468,8 +2453,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.User"
                         }
                     },
                     "401": {
@@ -2757,8 +2741,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Part"
                             }
                         }
                     },
@@ -3144,8 +3127,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.ManufacturerPart"
                         }
                     },
                     "400": {
@@ -3363,8 +3345,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Project"
                             }
                         }
                     },
@@ -3410,8 +3391,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Project"
                         }
                     },
                     "400": {
@@ -3459,8 +3439,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Project"
                         }
                     },
                     "401": {
@@ -3566,8 +3545,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Project"
                         }
                     },
                     "400": {
@@ -3624,8 +3602,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.ProjectAsset"
                             }
                         }
                     },
@@ -3684,8 +3661,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Board"
                         }
                     },
                     "400": {
@@ -3753,8 +3729,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Board"
                         }
                     },
                     "400": {
@@ -3885,8 +3860,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.ProjectAsset"
                         }
                     },
                     "400": {
@@ -4330,8 +4304,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Stats"
                         }
                     },
                     "401": {
@@ -4372,8 +4345,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem"
                         }
                     },
                     "401": {
@@ -4460,8 +4432,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "type": "file"
                         }
                     },
                     "400": {
@@ -4570,8 +4541,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem"
                         }
                     },
                     "400": {
@@ -4626,7 +4596,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -4724,8 +4696,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockTransaction"
                             }
                         }
                     },
@@ -4773,8 +4744,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem"
                         }
                     },
                     "400": {
@@ -4822,8 +4792,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem"
                         }
                     },
                     "401": {
@@ -4870,8 +4839,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem"
                         }
                     },
                     "400": {
@@ -4920,7 +4888,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
@@ -4961,8 +4931,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Supplier"
                             }
                         }
                     },
@@ -5017,8 +4986,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Task"
                             }
                         }
                     },
@@ -5050,7 +5018,10 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "integer",
+                                "format": "int64"
+                            }
                         }
                     },
                     "401": {
@@ -5091,8 +5062,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Task"
                         }
                     },
                     "401": {
@@ -5141,7 +5111,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
@@ -5197,8 +5169,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.JobLog"
                             }
                         }
                     },
@@ -5289,8 +5260,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.APIToken"
                             }
                         }
                     },
@@ -5386,7 +5356,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
@@ -5427,8 +5399,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.User"
                             }
                         }
                     },
@@ -5474,8 +5445,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.User"
                         }
                     },
                     "400": {
@@ -5530,7 +5500,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -5579,7 +5551,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
@@ -5638,8 +5612,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.User"
                         }
                     },
                     "400": {
@@ -5708,7 +5681,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -5737,6 +5712,294 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "github_com_firelabsca_firebin-api_internal_models.APIToken": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "revoked_at": {
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "token_suffix": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.BOMLine": {
+            "type": "object",
+            "properties": {
+                "board_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "footprint": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ipn": {
+                    "type": "string"
+                },
+                "manufacturer": {
+                    "type": "string"
+                },
+                "match_kind": {
+                    "type": "string"
+                },
+                "mpn": {
+                    "type": "string"
+                },
+                "part_id": {
+                    "type": "string"
+                },
+                "part_name": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "quantity": {
+                    "type": "integer"
+                },
+                "refs": {
+                    "type": "string"
+                },
+                "supplier_sku": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.Board": {
+            "type": "object",
+            "properties": {
+                "copies": {
+                    "description": "panel = N-up, board = 1",
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "description": "board | panel",
+                    "type": "string"
+                },
+                "line_count": {
+                    "type": "integer"
+                },
+                "lines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.BOMLine"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "project_id": {
+                    "type": "string"
+                },
+                "revision": {
+                    "type": "string"
+                },
+                "source_filename": {
+                    "type": "string"
+                },
+                "source_format": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.Category": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parent_id": {
+                    "type": "string"
+                },
+                "part_count": {
+                    "description": "parts directly in this category (List only)",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.JobLog": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "task_id": {
+                    "type": "string"
+                },
+                "ts": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.LabelMedia": {
+            "type": "object",
+            "properties": {
+                "brand": {
+                    "type": "string"
+                },
+                "builtin": {
+                    "type": "boolean"
+                },
+                "code": {
+                    "type": "string"
+                },
+                "cols": {
+                    "type": "integer"
+                },
+                "corner_radius": {
+                    "type": "number"
+                },
+                "cut_guides": {
+                    "description": "draw cut outlines (generic full-page stock)",
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "description": "\"sheet\" (roll/label-printer media later)",
+                    "type": "string"
+                },
+                "label_h": {
+                    "type": "number"
+                },
+                "label_w": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "page_h": {
+                    "type": "number"
+                },
+                "page_w": {
+                    "type": "number"
+                },
+                "pitch_x": {
+                    "type": "number"
+                },
+                "pitch_y": {
+                    "type": "number"
+                },
+                "rows": {
+                    "type": "integer"
+                },
+                "x0": {
+                    "type": "number"
+                },
+                "y0": {
+                    "type": "number"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.LabelTemplate": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "elements": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "id": {
+                    "type": "string"
+                },
+                "label_media_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.Manufacturer": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "website": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_firelabsca_firebin-api_internal_models.ManufacturerPart": {
             "type": "object",
             "properties": {
@@ -5934,6 +6197,108 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_firelabsca_firebin-api_internal_models.PickEntry": {
+            "type": "object",
+            "properties": {
+                "location_id": {
+                    "type": "string"
+                },
+                "location_name": {
+                    "description": "\"\" when the lot has no bin",
+                    "type": "string"
+                },
+                "part_id": {
+                    "type": "string"
+                },
+                "part_name": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "number"
+                },
+                "stock_item_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.PickList": {
+            "type": "object",
+            "properties": {
+                "board_id": {
+                    "type": "string"
+                },
+                "board_name": {
+                    "type": "string"
+                },
+                "copies": {
+                    "description": "panel N-up (per board)",
+                    "type": "integer"
+                },
+                "entries": {
+                    "description": "sorted by location, then part",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.PickEntry"
+                    }
+                },
+                "quantity": {
+                    "description": "boards to build",
+                    "type": "integer"
+                },
+                "shortfalls": {
+                    "description": "parts short of stock",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.PickShortfall"
+                    }
+                },
+                "total_units": {
+                    "type": "number"
+                },
+                "unmatched": {
+                    "description": "BOM lines with no matched part",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.PickUnmatched"
+                    }
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.PickShortfall": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "number"
+                },
+                "part_id": {
+                    "type": "string"
+                },
+                "part_name": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "number"
+                },
+                "short": {
+                    "type": "number"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.PickUnmatched": {
+            "type": "object",
+            "properties": {
+                "quantity": {
+                    "description": "total needed across the whole build",
+                    "type": "integer"
+                },
+                "refs": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_firelabsca_firebin-api_internal_models.PriceBreak": {
             "type": "object",
             "properties": {
@@ -5948,6 +6313,100 @@ const docTemplate = `{
                 },
                 "quantity": {
                     "type": "number"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.Project": {
+            "type": "object",
+            "properties": {
+                "board_count": {
+                    "type": "integer"
+                },
+                "boards": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Board"
+                    }
+                },
+                "cover_asset_id": {
+                    "description": "Cover thumbnail for project cards: an uploaded image, else the first\nboard's render. Computed on read.",
+                    "type": "string"
+                },
+                "cover_asset_kind": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.ProjectAsset": {
+            "type": "object",
+            "properties": {
+                "board_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "mime": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.Stats": {
+            "type": "object",
+            "properties": {
+                "inventory_value": {
+                    "type": "number"
+                },
+                "locations_count": {
+                    "type": "integer"
+                },
+                "low_stock_count": {
+                    "type": "integer"
+                },
+                "parts_count": {
+                    "type": "integer"
+                },
+                "total_units": {
+                    "type": "number"
+                },
+                "variants_count": {
+                    "type": "integer"
                 }
             }
         },
@@ -6063,6 +6522,52 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_firelabsca_firebin-api_internal_models.StorageLocation": {
+            "type": "object",
+            "properties": {
+                "barcode": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parent_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.Supplier": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "is_distributor": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "website": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_firelabsca_firebin-api_internal_models.SupplierPart": {
             "type": "object",
             "properties": {
@@ -6094,6 +6599,95 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.Task": {
+            "type": "object",
+            "properties": {
+                "args_summary": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "attempt": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "max_attempts": {
+                    "type": "integer"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "progress_done": {
+                    "type": "integer"
+                },
+                "progress_total": {
+                    "type": "integer"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.User": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_instance_admin": {
+                    "type": "boolean"
+                },
+                "role": {
+                    "description": "admin | member | viewer",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

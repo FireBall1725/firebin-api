@@ -90,7 +90,7 @@ func (h *Handler) resolveOne(ctx context.Context, mediaID, partID uuid.UUID, raw
 // @Accept      json
 // @Produce     application/pdf
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {file}    binary
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /labels/preview  [post]
@@ -170,7 +170,7 @@ type labelTemplateRequest struct {
 // @Tags        labels
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200      {array}   map[string]interface{}
+// @Success     200      {array}   models.LabelTemplate
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /labels/templates  [get]
 func (h *Handler) ListLabelTemplates(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +190,7 @@ func (h *Handler) ListLabelTemplates(w http.ResponseWriter, r *http.Request) {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.LabelTemplate
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /labels/templates  [post]
@@ -221,7 +221,7 @@ func (h *Handler) CreateLabelTemplate(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id       path      string                  true   "identifier"
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.LabelTemplate
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -282,7 +282,7 @@ func (h *Handler) DeleteLabelTemplate(w http.ResponseWriter, r *http.Request) {
 // @Tags        labels
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200      {array}   map[string]interface{}
+// @Success     200      {array}   models.LabelMedia
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /labels/media  [get]
 func (h *Handler) ListLabelMedia(w http.ResponseWriter, r *http.Request) {
@@ -324,7 +324,7 @@ func (h *Handler) SearchLabelCatalog(w http.ResponseWriter, r *http.Request) {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.LabelMedia
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /labels/media  [post]
@@ -449,7 +449,7 @@ func resolveLabelValue(e labels.Element, deepLink string, p *models.Part) string
 // @Accept      json
 // @Produce     application/pdf
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {file}    binary
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /labels/print  [post]
