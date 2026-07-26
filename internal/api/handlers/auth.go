@@ -27,6 +27,24 @@ type tokenResponse struct {
 	User         *models.User `json:"user"`
 }
 
+// SetupStatus reports whether the instance still needs its first account. It is
+// public so the web app can show a setup wizard before anyone can sign in; the
+// first account created through it becomes the instance admin.
+// @Summary     Setup status
+// @Description Report whether the instance needs its first (admin) account created.
+// @Tags        auth
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Router      /auth/setup  [get]
+func (h *Handler) SetupStatus(w http.ResponseWriter, r *http.Request) {
+	count, err := h.Users.Count(r.Context())
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not check setup state")
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]bool{"setup_required": count == 0})
+}
+
 // Register creates a new user. The first user to register becomes the instance
 // admin; registration can be disabled for everyone else via config.
 // @Summary     Register a new user

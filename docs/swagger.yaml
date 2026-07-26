@@ -861,6 +861,20 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /auth/setup:
+    get:
+      description: Report whether the instance needs its first (admin) account created.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Setup status
+      tags:
+      - auth
   /boards/{id}:
     delete:
       description: Delete a board.
