@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,6 +31,13 @@ func mustExec(t *testing.T, pool *pgxpool.Pool, ctx context.Context, sql string,
 	if _, err := pool.Exec(ctx, sql, args...); err != nil {
 		t.Fatalf("exec %q: %v", sql, err)
 	}
+}
+
+// swapID replaces every occurrence of oldID with newID in a JSON blob. Used to
+// give an exported row an id the target does not have, simulating an export from a
+// different instance whose per-instance seed UUIDs differ.
+func swapID(raw json.RawMessage, oldID, newID string) json.RawMessage {
+	return json.RawMessage(strings.ReplaceAll(string(raw), oldID, newID))
 }
 
 // reverseJSONArray reverses a JSON array of objects, used to feed rows in

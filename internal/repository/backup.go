@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -50,10 +51,20 @@ func (r *BackupRepo) ExportAll(ctx context.Context) (map[string]json.RawMessage,
 // inserted in any order (including self-referential rows such as a child category
 // before its parent). Every FK is DEFERRABLE as of migration 000023, and
 // SET CONSTRAINTS needs no special privilege, so this works as the non-superuser
-// app role that managed Postgres (CloudNativePG, RDS, etc.) provides. Rows that
-// already exist are skipped by primary key, making re-import idempotent. Returns
-// the number of rows inserted per table.
-func (r *BackupRepo) ImportAll(ctx context.Context, tables map[string]json.RawMessage) (map[string]int64, error) {
+// app role that managed Postgres (CloudNativePG, RDS, etc.) provides.
+//
+// When replace is false (merge), rows that collide are skipped (ON CONFLICT DO
+// NOTHING). Merge only reliably fills gaps in a matching instance: because the
+// schema seeds rows (parameter_templates, label_media, suppliers) and the first
+// account bootstraps an admin, all with fresh UUIDs, an export from another
+// instance carries different ids for the same unique names/usernames. Those rows
+// get skipped, orphaning their children and failing the commit. So a cross-instance
+// restore must use replace=true, which first truncates every durable table and
+// loads the export exactly as-is (its own ids, no collisions). Replace is
+// destructive: it also clears sessions, so the caller signs in again afterward with
+// the credentials carried in the export. Returns the number of rows inserted per
+// table.
+func (r *BackupRepo) ImportAll(ctx context.Context, tables map[string]json.RawMessage, replace bool) (map[string]int64, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -64,6 +75,14 @@ func (r *BackupRepo) ImportAll(ctx context.Context, tables map[string]json.RawMe
 		return nil, fmt.Errorf("deferring constraints for import: %w", err)
 	}
 
+	if replace {
+		// Empty every durable table first so the export loads with no collisions.
+		// CASCADE also clears volatile tables that reference these (sessions, jobs).
+		if _, err := tx.Exec(ctx, `TRUNCATE `+strings.Join(backupTables, ", ")+` RESTART IDENTITY CASCADE`); err != nil {
+			return nil, fmt.Errorf("clearing data for replace import: %w", err)
+		}
+	}
+
 	counts := make(map[string]int64)
 	for _, t := range backupTables {
 		raw, ok := tables[t]
@@ -71,7 +90,8 @@ func (r *BackupRepo) ImportAll(ctx context.Context, tables map[string]json.RawMe
 			continue
 		}
 		// jsonb_populate_recordset expands the JSON array into typed rows of the
-		// table; ON CONFLICT DO NOTHING makes re-import idempotent.
+		// table; ON CONFLICT DO NOTHING keeps a merge import idempotent (and is a
+		// no-op after a truncate, where nothing conflicts).
 		tag, err := tx.Exec(ctx, `INSERT INTO `+t+` SELECT * FROM jsonb_populate_recordset(NULL::`+t+`, $1) ON CONFLICT DO NOTHING`, raw)
 		if err != nil {
 			return nil, fmt.Errorf("import %s: %w", t, err)

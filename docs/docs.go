@@ -1066,7 +1066,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Restore an export produced by ExportData; existing rows are left untouched.",
+                "description": "Restore an export produced by ExportData. mode=merge (default) skips existing rows; mode=replace wipes all data first and restores the export exactly.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1078,6 +1078,12 @@ const docTemplate = `{
                 ],
                 "summary": "Import data",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "merge (default) or replace",
+                        "name": "mode",
+                        "in": "query"
+                    },
                     {
                         "description": "request body",
                         "name": "request",
