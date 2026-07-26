@@ -14,6 +14,16 @@ import (
 )
 
 // ListPartStock returns every stock lot for a part.
+// @Summary     List part stock
+// @Description Return every stock lot for a part.
+// @Tags        stock
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true  "Part id"
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /parts/{id}/stock  [get]
 func (h *Handler) ListPartStock(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -28,6 +38,16 @@ func (h *Handler) ListPartStock(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListPartStockHistory returns the recent movement log for a part.
+// @Summary     List part stock history
+// @Description Return the recent movement log for a part.
+// @Tags        stock
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true  "Part id"
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /parts/{id}/stock/history  [get]
 func (h *Handler) ListPartStockHistory(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -51,6 +71,19 @@ type adjustRequest struct {
 
 // AdjustPartStock applies an add/remove/count/adjust to a part's stock at a
 // location, recording the movement.
+// @Summary     Adjust part stock
+// @Description Apply an add/remove/count/adjust to a part's stock at a location.
+// @Tags        stock
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true  "Part id"
+// @Param       request  body      map[string]interface{}  true  "Adjustment"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /parts/{id}/stock/adjust  [post]
 func (h *Handler) AdjustPartStock(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -93,6 +126,17 @@ type moveRequest struct {
 }
 
 // MoveStock transfers quantity between locations.
+// @Summary     Move stock
+// @Description Transfer quantity between locations.
+// @Tags        stock
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true  "Move request"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /stock/move  [post]
 func (h *Handler) MoveStock(w http.ResponseWriter, r *http.Request) {
 	var req moveRequest
 	if !respond.Decode(w, r, &req) {

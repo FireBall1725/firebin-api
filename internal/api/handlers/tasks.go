@@ -19,6 +19,14 @@ import (
 // ClearTasks deletes every finished (completed/failed/cancelled) task and its
 // logs — the manual "clear" from the Activity screen. Admin only. Running or
 // queued tasks are never removed.
+// @Summary     Clear finished tasks
+// @Description Delete every finished task and its logs; running or queued tasks are kept.
+// @Tags        tasks
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /tasks  [delete]
 func (h *Handler) ClearTasks(w http.ResponseWriter, r *http.Request) {
 	n, err := h.Jobs.Store().ClearFinished(r.Context(), time.Now())
 	if err != nil {
@@ -29,6 +37,17 @@ func (h *Handler) ClearTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListTasks returns recent background tasks, newest first.
+// @Summary     List tasks
+// @Description Return recent background tasks, newest first, optionally filtered.
+// @Tags        tasks
+// @Security    BearerAuth
+// @Produce     json
+// @Param       status  query     string  false  "filter by status"
+// @Param       type    query     string  false  "filter by task type"
+// @Param       limit   query     int     false  "maximum tasks to return"
+// @Success     200     {array}   map[string]interface{}
+// @Failure     401     {object}  map[string]interface{}
+// @Router      /tasks  [get]
 func (h *Handler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	typ := r.URL.Query().Get("type")
@@ -42,6 +61,16 @@ func (h *Handler) ListTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetTask returns one task with its progress and result.
+// @Summary     Get task
+// @Description Return one task with its progress and result.
+// @Tags        tasks
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true   "task ID"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /tasks/{id}  [get]
 func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -60,6 +89,17 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetTaskLogs returns the task's log lines after ?after_id=N.
+// @Summary     Get task logs
+// @Description Return the task's log lines after the given after_id cursor.
+// @Tags        tasks
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id        path      string                  true   "task ID"
+// @Param       after_id  query     int                     false  "return logs after this id"
+// @Success     200       {array}   map[string]interface{}
+// @Failure     401       {object}  map[string]interface{}
+// @Failure     404       {object}  map[string]interface{}
+// @Router      /tasks/{id}/logs  [get]
 func (h *Handler) GetTaskLogs(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -75,6 +115,16 @@ func (h *Handler) GetTaskLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 // CancelTask requests cancellation.
+// @Summary     Cancel task
+// @Description Request cancellation of a running or queued task.
+// @Tags        tasks
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true   "task ID"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /tasks/{id}/cancel  [post]
 func (h *Handler) CancelTask(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -93,6 +143,16 @@ func (h *Handler) CancelTask(w http.ResponseWriter, r *http.Request) {
 }
 
 // RetryTask enqueues a fresh job from a finished task's arguments.
+// @Summary     Retry task
+// @Description Enqueue a fresh job from a finished task's arguments.
+// @Tags        tasks
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true   "task ID"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /tasks/{id}/retry  [post]
 func (h *Handler) RetryTask(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {

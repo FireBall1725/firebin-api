@@ -24,6 +24,14 @@ type projectRequest struct {
 	Tags        []string `json:"tags"`
 }
 
+// @Summary     List projects
+// @Description Return all projects.
+// @Tags        projects
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /projects  [get]
 func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	ps, err := h.Projects.List(r.Context())
 	if err != nil {
@@ -33,6 +41,17 @@ func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, ps)
 }
 
+// @Summary     Create project
+// @Description Create a new project.
+// @Tags        projects
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true  "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /projects  [post]
 func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	var req projectRequest
 	if !respond.Decode(w, r, &req) {
@@ -51,6 +70,16 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, p)
 }
 
+// @Summary     Get project
+// @Description Return a single project by id.
+// @Tags        projects
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true  "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /projects/{id}  [get]
 func (h *Handler) GetProject(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -68,6 +97,19 @@ func (h *Handler) GetProject(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, p)
 }
 
+// @Summary     Update project
+// @Description Update a project's name, description, or tags.
+// @Tags        projects
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true  "identifier"
+// @Param       request  body      map[string]interface{}  true  "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /projects/{id}  [patch]
 func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -90,6 +132,16 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, p)
 }
 
+// @Summary     Delete project
+// @Description Delete a project.
+// @Tags        projects
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true  "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /projects/{id}  [delete]
 func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -109,6 +161,19 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 // parsed to a BOM (schematic s-expr or BOM CSV), each line matched against
 // inventory, and the result stored. The file itself is not retained — only the
 // parsed BOM.
+// @Summary     Create board from upload
+// @Description Add a board to a project from an uploaded KiCad file.
+// @Tags        projects
+// @Security    BearerAuth
+// @Accept      multipart/form-data
+// @Produce     json
+// @Param       id    path      string  true  "identifier"
+// @Param       file  formData  file    true  "KiCad file upload"
+// @Success     201   {object}  map[string]interface{}
+// @Failure     400   {object}  map[string]interface{}
+// @Failure     401   {object}  map[string]interface{}
+// @Failure     404   {object}  map[string]interface{}
+// @Router      /projects/{id}/boards  [post]
 func (h *Handler) CreateBoard(w http.ResponseWriter, r *http.Request) {
 	projectID, ok := pathUUID(w, r)
 	if !ok {
@@ -330,6 +395,19 @@ type previewUnmatched struct {
 // SetProjectMatch writes a project match rule (a BOM identity → a part) and
 // re-matches every board in the project. Used by the upload wizard to match
 // leftover lines before committing.
+// @Summary     Set project match
+// @Description Write a project match rule and re-match every board in the project.
+// @Tags        projects
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true  "identifier"
+// @Param       request  body      map[string]interface{}  true  "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /projects/{id}/matches  [post]
 func (h *Handler) SetProjectMatch(w http.ResponseWriter, r *http.Request) {
 	projectID, ok := pathUUID(w, r)
 	if !ok {
@@ -363,6 +441,19 @@ func (h *Handler) SetProjectMatch(w http.ResponseWriter, r *http.Request) {
 // PreviewBoard parses an upload without committing and returns what was detected
 // (board name, title-block revision, panels, iBOM, renders) so the upload wizard
 // can show a mapping/confirm step before creating anything.
+// @Summary     Preview board upload
+// @Description Parse an upload without committing and return what was detected.
+// @Tags        projects
+// @Security    BearerAuth
+// @Accept      multipart/form-data
+// @Produce     json
+// @Param       id    path      string  true  "identifier"
+// @Param       file  formData  file    true  "KiCad file upload"
+// @Success     200   {object}  map[string]interface{}
+// @Failure     400   {object}  map[string]interface{}
+// @Failure     401   {object}  map[string]interface{}
+// @Failure     404   {object}  map[string]interface{}
+// @Router      /projects/{id}/boards/preview  [post]
 func (h *Handler) PreviewBoard(w http.ResponseWriter, r *http.Request) {
 	projectID, ok := pathUUID(w, r)
 	if !ok {
@@ -463,6 +554,16 @@ func (h *Handler) PreviewBoard(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary     Get board
+// @Description Return a single board by id.
+// @Tags        boards
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true  "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /boards/{id}  [get]
 func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -482,6 +583,16 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 
 // ── Assets ───────────────────────────────────────────────────────────────────
 
+// @Summary     List project assets
+// @Description Return all assets attached to a project.
+// @Tags        projects
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true  "identifier"
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /projects/{id}/assets  [get]
 func (h *Handler) ListProjectAssets(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -497,6 +608,16 @@ func (h *Handler) ListProjectAssets(w http.ResponseWriter, r *http.Request) {
 
 // GetAsset streams a stored asset's raw bytes with its content type, so the web
 // client can render it (iBOM in an iframe, images inline).
+// @Summary     Get asset
+// @Description Stream a stored asset's raw bytes with its content type.
+// @Tags        projects
+// @Security    BearerAuth
+// @Produce     octet-stream
+// @Param       id   path      string  true  "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /assets/{id}  [get]
 func (h *Handler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -517,6 +638,16 @@ func (h *Handler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(content)
 }
 
+// @Summary     Delete asset
+// @Description Delete a stored asset.
+// @Tags        projects
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true  "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /assets/{id}  [delete]
 func (h *Handler) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -537,6 +668,19 @@ type boardUpdate struct {
 }
 
 // UpdateBoard renames a board or corrects a panel's copy count.
+// @Summary     Update board
+// @Description Rename a board or correct a panel's copy count.
+// @Tags        boards
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true  "identifier"
+// @Param       request  body      map[string]interface{}  true  "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /boards/{id}  [patch]
 func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -559,6 +703,16 @@ func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, b)
 }
 
+// @Summary     Delete board
+// @Description Delete a board.
+// @Tags        boards
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true  "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /boards/{id}  [delete]
 func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -664,6 +818,19 @@ func (h *Handler) rematchProject(ctx context.Context, projectID uuid.UUID) {
 }
 
 // CreateBlankBoard makes an empty board (no upload) to build a BOM by hand.
+// @Summary     Create blank board
+// @Description Make an empty board to build a BOM by hand.
+// @Tags        projects
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true  "identifier"
+// @Param       request  body      map[string]interface{}  true  "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /projects/{id}/boards/blank  [post]
 func (h *Handler) CreateBlankBoard(w http.ResponseWriter, r *http.Request) {
 	projectID, ok := pathUUID(w, r)
 	if !ok {
@@ -695,6 +862,19 @@ func (h *Handler) CreateBlankBoard(w http.ResponseWriter, r *http.Request) {
 // UploadBoardAsset attaches a file to a board, detecting its kind: an Interactive
 // HTML BOM (replaces the board's existing iBOM, so the layout tab uses it over
 // the generated render) or an image (added as a render; several are allowed).
+// @Summary     Upload board asset
+// @Description Attach a file to a board, detecting an interactive BOM or image.
+// @Tags        boards
+// @Security    BearerAuth
+// @Accept      multipart/form-data
+// @Produce     json
+// @Param       id    path      string  true  "identifier"
+// @Param       file  formData  file    true  "file upload"
+// @Success     201   {object}  map[string]interface{}
+// @Failure     400   {object}  map[string]interface{}
+// @Failure     401   {object}  map[string]interface{}
+// @Failure     404   {object}  map[string]interface{}
+// @Router      /boards/{id}/assets  [post]
 func (h *Handler) UploadBoardAsset(w http.ResponseWriter, r *http.Request) {
 	boardID, ok := pathUUID(w, r)
 	if !ok {
@@ -751,6 +931,19 @@ func (h *Handler) UploadBoardAsset(w http.ResponseWriter, r *http.Request) {
 
 // UploadProjectCover sets a project's cover image from an uploaded image,
 // replacing any previous cover.
+// @Summary     Upload project cover
+// @Description Set a project's cover image from an uploaded image.
+// @Tags        projects
+// @Security    BearerAuth
+// @Accept      multipart/form-data
+// @Produce     json
+// @Param       id    path      string  true  "identifier"
+// @Param       file  formData  file    true  "cover image upload"
+// @Success     201   {object}  map[string]interface{}
+// @Failure     400   {object}  map[string]interface{}
+// @Failure     401   {object}  map[string]interface{}
+// @Failure     404   {object}  map[string]interface{}
+// @Router      /projects/{id}/cover  [post]
 func (h *Handler) UploadProjectCover(w http.ResponseWriter, r *http.Request) {
 	projectID, ok := pathUUID(w, r)
 	if !ok {
@@ -797,6 +990,16 @@ func (h *Handler) UploadProjectCover(w http.ResponseWriter, r *http.Request) {
 
 // RemoveProjectCover clears a project's uploaded cover (the card falls back to
 // the first board's render).
+// @Summary     Remove project cover
+// @Description Clear a project's uploaded cover.
+// @Tags        projects
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true  "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /projects/{id}/cover  [delete]
 func (h *Handler) RemoveProjectCover(w http.ResponseWriter, r *http.Request) {
 	projectID, ok := pathUUID(w, r)
 	if !ok {
@@ -888,6 +1091,19 @@ func (h *Handler) applyMatch(ctx context.Context, projectID uuid.UUID, l *models
 }
 
 // AddBOMLine appends a manually-entered line to a board's BOM (auto-matched).
+// @Summary     Add BOM line
+// @Description Append a manually-entered line to a board's BOM.
+// @Tags        boards
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true  "identifier"
+// @Param       request  body      map[string]interface{}  true  "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /boards/{id}/lines  [post]
 func (h *Handler) AddBOMLine(w http.ResponseWriter, r *http.Request) {
 	boardID, ok := pathUUID(w, r)
 	if !ok {
@@ -921,6 +1137,19 @@ func (h *Handler) AddBOMLine(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateBOMLine edits a BOM line and re-matches it.
+// @Summary     Update BOM line
+// @Description Edit a BOM line and re-match it.
+// @Tags        boards
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true  "identifier"
+// @Param       request  body      map[string]interface{}  true  "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /lines/{id}  [patch]
 func (h *Handler) UpdateBOMLine(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -958,6 +1187,16 @@ func (h *Handler) UpdateBOMLine(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, full)
 }
 
+// @Summary     Delete BOM line
+// @Description Delete a BOM line.
+// @Tags        boards
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true  "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /lines/{id}  [delete]
 func (h *Handler) DeleteBOMLine(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {

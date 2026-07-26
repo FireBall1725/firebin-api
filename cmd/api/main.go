@@ -1,9 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 FireBall1725
 
-// FireBin API — self-hosted electronics component inventory.
-// All protected endpoints require a Bearer JWT or `fbin_pat_*` personal access
-// token in the Authorization header.
+// @title           FireBin API
+// @version         26.7.0
+// @description     Self-hosted electronics parts inventory. Track quantity, package, brand, location, and vendor pricing across your parts, scan a distributor barcode to enrich a part, and generate bin and part labels. All protected endpoints require a Bearer JWT (or `fbin_pat_*` personal access token) in the Authorization header.
+
+// @contact.name   FireBin
+// @contact.url    https://github.com/FireBall1725/firebin
+
+// @license.name  AGPL-3.0
+// @license.url   https://www.gnu.org/licenses/agpl-3.0.html
+
+// @host      localhost:8080
+// @BasePath  /api/v1
+
+// @securityDefinitions.apikey  BearerAuth
+// @in                          header
+// @name                        Authorization
+// @description                 Enter: Bearer {token}
+
 package main
 
 import (

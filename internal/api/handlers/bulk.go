@@ -19,6 +19,17 @@ type bulkMoveRequest struct {
 }
 
 // BulkMoveParts consolidates all stock of each given part into one location.
+// @Summary     Bulk move parts
+// @Description Consolidate all stock of each given part into one location.
+// @Tags        parts
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true  "Part ids and location"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /parts/bulk/move  [post]
 func (h *Handler) BulkMoveParts(w http.ResponseWriter, r *http.Request) {
 	var req bulkMoveRequest
 	if !respond.Decode(w, r, &req) {
@@ -48,6 +59,17 @@ type bulkEnrichRequest struct {
 // BulkEnrichParts enqueues a background job that refreshes metadata for the
 // given parts from their primary MPN. It returns 202 with a task id the client
 // watches; the work itself runs in the bulk_enrich worker off the request path.
+// @Summary     Bulk enrich parts
+// @Description Enqueue a background job to refresh metadata for the given parts.
+// @Tags        parts
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true  "Part ids"
+// @Success     202  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /parts/bulk/enrich  [post]
 func (h *Handler) BulkEnrichParts(w http.ResponseWriter, r *http.Request) {
 	var req bulkEnrichRequest
 	if !respond.Decode(w, r, &req) {

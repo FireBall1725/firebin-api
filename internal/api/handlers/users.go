@@ -15,6 +15,14 @@ import (
 )
 
 // Me returns the authenticated user's profile.
+// @Summary     Get my profile
+// @Description Return the authenticated user's profile.
+// @Tags        account
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /me  [get]
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	u, err := h.Users.GetByID(r.Context(), middleware.UserID(r.Context()))
 	if err != nil {
@@ -29,6 +37,14 @@ func validRole(role string) bool {
 }
 
 // ListUsers returns every user for the admin user-management screen.
+// @Summary     List users
+// @Description Return every user for the admin user-management screen.
+// @Tags        users
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /users  [get]
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.Users.List(r.Context())
 	if err != nil {
@@ -48,6 +64,17 @@ type createUserRequest struct {
 
 // CreateUser adds a user with a role (admin only). No email invite; the admin
 // sets an initial password and shares it out of band.
+// @Summary     Create a user
+// @Description Add a user with a role; the admin sets an initial password and shares it out of band.
+// @Tags        users
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /users  [post]
 func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var req createUserRequest
 	if !respond.Decode(w, r, &req) {
@@ -92,6 +119,19 @@ type updateUserRequest struct {
 
 // UpdateUser sets a user's role, active flag, and display name (admin only),
 // refusing any change that would remove the last active admin.
+// @Summary     Update a user
+// @Description Set a user's role, active flag, and display name, refusing any change that removes the last active admin.
+// @Tags        users
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true   "user ID"
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /users/{id}  [patch]
 func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -128,6 +168,19 @@ type passwordRequest struct {
 }
 
 // ResetUserPassword sets a new password for a user (admin only).
+// @Summary     Reset a user's password
+// @Description Set a new password for a user.
+// @Tags        users
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true   "user ID"
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /users/{id}/reset-password  [post]
 func (h *Handler) ResetUserPassword(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -155,6 +208,16 @@ func (h *Handler) ResetUserPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteUser removes a user (admin only). You cannot delete yourself or the last admin.
+// @Summary     Delete a user
+// @Description Remove a user; you cannot delete yourself or the last admin.
+// @Tags        users
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true   "user ID"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /users/{id}  [delete]
 func (h *Handler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -188,6 +251,17 @@ type changePasswordRequest struct {
 
 // ChangeMyPassword lets any signed-in user (any role) change their own password
 // after confirming the current one.
+// @Summary     Change my password
+// @Description Let any signed-in user change their own password after confirming the current one.
+// @Tags        account
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /users/me/password  [patch]
 func (h *Handler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
 	var req changePasswordRequest
 	if !respond.Decode(w, r, &req) {

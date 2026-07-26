@@ -17,6 +17,17 @@ import (
 // quantity per matched part = N x per-board qty x panel copies, aggregated across
 // BOM lines. Stock is allocated bin by bin (ordered for walking); parts short of
 // stock and BOM lines with no inventory match are flagged. Query: ?quantity=N.
+// @Summary     Board pick list
+// @Description Compute what to pull from stock to build N of a board.
+// @Tags        boards
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id        path      string   true   "identifier"
+// @Param       quantity  query     integer  false  "number of boards to build"
+// @Success     200       {object}  map[string]interface{}
+// @Failure     401       {object}  map[string]interface{}
+// @Failure     404       {object}  map[string]interface{}
+// @Router      /boards/{id}/pick-list  [get]
 func (h *Handler) BoardPickList(w http.ResponseWriter, r *http.Request) {
 	boardID, ok := pathUUID(w, r)
 	if !ok {

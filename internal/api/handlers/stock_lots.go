@@ -35,6 +35,16 @@ func stockDeepLink(s *models.StockItem) string {
 func qtyStr(q float64) string { return strconv.FormatFloat(q, 'f', -1, 64) }
 
 // GetStockLot returns one lot by id.
+// @Summary     Get stock lot
+// @Description Return one stock lot by id.
+// @Tags        stock-lots
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true   "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /stock-items/{id}  [get]
 func (h *Handler) GetStockLot(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -53,6 +63,15 @@ func (h *Handler) GetStockLot(w http.ResponseWriter, r *http.Request) {
 }
 
 // ScanStockLot resolves a lot from its barcode (?barcode=).
+// @Summary     Scan stock lot
+// @Description Resolve a stock lot from its barcode.
+// @Tags        stock-lots
+// @Security    BearerAuth
+// @Produce     json
+// @Param       barcode  query     string                  true   "barcode"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /stock/scan  [get]
 func (h *Handler) ScanStockLot(w http.ResponseWriter, r *http.Request) {
 	code := strings.TrimSpace(r.URL.Query().Get("barcode"))
 	if code == "" {
@@ -80,6 +99,17 @@ type splitStockRequest struct {
 }
 
 // SplitStock cuts a quantity off a lot into a new barcoded lot (a mini spool).
+// @Summary     Split stock lot
+// @Description Cut a quantity off a lot into a new barcoded lot.
+// @Tags        stock-lots
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /stock/split  [post]
 func (h *Handler) SplitStock(w http.ResponseWriter, r *http.Request) {
 	var req splitStockRequest
 	if !respond.Decode(w, r, &req) {
@@ -107,6 +137,17 @@ type mergeStockRequest struct {
 }
 
 // MergeStock pours one lot into another (same part) and deletes the source.
+// @Summary     Merge stock lots
+// @Description Pour one lot into another and delete the source.
+// @Tags        stock-lots
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /stock/merge  [post]
 func (h *Handler) MergeStock(w http.ResponseWriter, r *http.Request) {
 	var req mergeStockRequest
 	if !respond.Decode(w, r, &req) {
@@ -129,6 +170,17 @@ type relocateStockRequest struct {
 }
 
 // RelocateStock moves a whole lot to a location (keeps its identity).
+// @Summary     Relocate stock lot
+// @Description Move a whole lot to another location.
+// @Tags        stock-lots
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /stock/relocate  [post]
 func (h *Handler) RelocateStock(w http.ResponseWriter, r *http.Request) {
 	var req relocateStockRequest
 	if !respond.Decode(w, r, &req) {
@@ -154,6 +206,17 @@ type lotAdjustRequest struct {
 }
 
 // AdjustStockLot changes one specific lot's quantity (lot-precise).
+// @Summary     Adjust stock lot
+// @Description Change one lot's quantity by add, remove, or count.
+// @Tags        stock-lots
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /stock/lot-adjust  [post]
 func (h *Handler) AdjustStockLot(w http.ResponseWriter, r *http.Request) {
 	var req lotAdjustRequest
 	if !respond.Decode(w, r, &req) {
@@ -243,6 +306,17 @@ type resolveStockLabelRequest struct {
 }
 
 // ResolveStockLabel returns a lot's resolved elements + media geometry (tape/WebUSB).
+// @Summary     Resolve stock label
+// @Description Return a stock lot's resolved label elements and media geometry.
+// @Tags        stock-lots
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /stock/labels/resolve  [post]
 func (h *Handler) ResolveStockLabel(w http.ResponseWriter, r *http.Request) {
 	var req resolveStockLabelRequest
 	if !respond.Decode(w, r, &req) {
@@ -271,6 +345,17 @@ type printStockLabelsRequest struct {
 }
 
 // PrintStockLabels renders a PDF of lot labels — the lot twin of PrintLabels.
+// @Summary     Print stock labels
+// @Description Render a PDF of stock lot labels.
+// @Tags        stock-lots
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     application/pdf
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /stock/labels/print  [post]
 func (h *Handler) PrintStockLabels(w http.ResponseWriter, r *http.Request) {
 	var req printStockLabelsRequest
 	if !respond.Decode(w, r, &req) {

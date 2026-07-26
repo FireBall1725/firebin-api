@@ -100,6 +100,17 @@ type resolveLocationLabelRequest struct {
 
 // ResolveLocationLabel returns a location's elements (field bindings filled) plus
 // media geometry as JSON, for client-side canvas rendering (tape / WebUSB).
+// @Summary     Resolve location label
+// @Description Return a location's resolved label elements and media geometry.
+// @Tags        locations
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /locations/labels/resolve  [post]
 func (h *Handler) ResolveLocationLabel(w http.ResponseWriter, r *http.Request) {
 	var req resolveLocationLabelRequest
 	if !respond.Decode(w, r, &req) {
@@ -129,6 +140,17 @@ type printLocationLabelsRequest struct {
 
 // PrintLocationLabels renders a PDF of labels for the given locations on the chosen
 // media — the location twin of PrintLabels.
+// @Summary     Print location labels
+// @Description Render a PDF of labels for the given locations.
+// @Tags        locations
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     application/pdf
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /locations/labels/print  [post]
 func (h *Handler) PrintLocationLabels(w http.ResponseWriter, r *http.Request) {
 	var req printLocationLabelsRequest
 	if !respond.Decode(w, r, &req) {

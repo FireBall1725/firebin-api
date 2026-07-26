@@ -11,6 +11,12 @@ import (
 )
 
 // Health is an unauthenticated liveness probe.
+// @Summary     Health check
+// @Description Unauthenticated liveness probe reporting service status and version.
+// @Tags        system
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Router      /health  [get]
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, map[string]string{
 		"status":  "ok",

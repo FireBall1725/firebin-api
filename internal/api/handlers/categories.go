@@ -20,6 +20,14 @@ type categoryRequest struct {
 	Description *string    `json:"description"`
 }
 
+// @Summary     List categories
+// @Description Return all categories.
+// @Tags        categories
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /categories [get]
 func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
 	cats, err := h.Categories.List(r.Context())
 	if err != nil {
@@ -29,6 +37,17 @@ func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, cats)
 }
 
+// @Summary     Create category
+// @Description Create a new category, optionally nested under a parent.
+// @Tags        categories
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /categories [post]
 func (h *Handler) CreateCategory(w http.ResponseWriter, r *http.Request) {
 	var req categoryRequest
 	if !respond.Decode(w, r, &req) {
@@ -47,6 +66,19 @@ func (h *Handler) CreateCategory(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, c)
 }
 
+// @Summary     Update category
+// @Description Update an existing category's name, parent, or description.
+// @Tags        categories
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true   "identifier"
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /categories/{id} [patch]
 func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -70,6 +102,16 @@ func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, c)
 }
 
+// @Summary     Delete category
+// @Description Delete a category that has no parts assigned to it.
+// @Tags        categories
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true   "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /categories/{id} [delete]
 func (h *Handler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {

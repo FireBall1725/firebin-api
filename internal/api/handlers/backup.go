@@ -24,6 +24,14 @@ type exportFile struct {
 // ExportData streams the whole instance as a portable JSON backup (admin only).
 // This is an application-level export, separate from a Postgres dump; the deployer
 // still owns their own database backup strategy.
+// @Summary     Export data
+// @Description Stream the whole instance as a portable JSON backup file.
+// @Tags        backup
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /export  [get]
 func (h *Handler) ExportData(w http.ResponseWriter, r *http.Request) {
 	tables, err := h.Backup.ExportAll(r.Context())
 	if err != nil {
@@ -44,6 +52,17 @@ func (h *Handler) ExportData(w http.ResponseWriter, r *http.Request) {
 // ImportData restores an export produced by ExportData (admin only). Existing rows
 // (by primary key) are left untouched, so importing into a populated instance only
 // fills gaps; importing into an empty one is a full restore.
+// @Summary     Import data
+// @Description Restore an export produced by ExportData; existing rows are left untouched.
+// @Tags        backup
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /import  [post]
 func (h *Handler) ImportData(w http.ResponseWriter, r *http.Request) {
 	var in exportFile
 	if !respond.Decode(w, r, &in) {

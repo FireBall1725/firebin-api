@@ -14,6 +14,14 @@ import (
 // mutation elsewhere publishes to the broker; open views subscribe here and
 // refetch on a matching resource. A heartbeat comment keeps proxies from
 // idling the connection out.
+// @Summary     Event stream
+// @Description Stream change signals to the caller over Server-Sent Events.
+// @Tags        system
+// @Security    BearerAuth
+// @Produce     text/event-stream
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /events  [get]
 func (h *Handler) Events(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

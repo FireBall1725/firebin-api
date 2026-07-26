@@ -22,6 +22,7 @@ The FireBin backend. Go 1.26, Postgres 16 through pgx, standard-library `net/htt
 - New `.go` files start with the SPDX header the rest of the tree uses: `// SPDX-License-Identifier: AGPL-3.0-only` and the copyright line.
 - Enforce access in the router, not the handler, by choosing `protected` or `admin`. The web client hides write controls for viewer accounts, but the API is the thing that has to reject them.
 - A schema change is a new numbered migration with a working `.down.sql`. Migrations run on boot, so a bad one breaks startup.
+- Every endpoint carries swaggo annotations (`// @Summary`, `// @Tags`, `// @Router`, etc.) directly above its handler. Add or change a route, update its annotations, then run `make docs` to regenerate the committed `docs/` spec.
 
 ## Before you open a pull request
 
