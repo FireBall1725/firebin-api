@@ -9,6 +9,7 @@ import (
 
 	"github.com/firelabsca/firebin-api/internal/api/middleware"
 	"github.com/firelabsca/firebin-api/internal/api/respond"
+	"github.com/firelabsca/firebin-api/internal/models"
 	"github.com/firelabsca/firebin-api/internal/repository"
 	"github.com/google/uuid"
 )
@@ -20,7 +21,7 @@ import (
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true  "Part id"
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.StockItem
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /parts/{id}/stock  [get]
@@ -29,6 +30,7 @@ func (h *Handler) ListPartStock(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	var items []models.StockItem
 	items, err := h.Stock.ListForPart(r.Context(), id)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not list stock")
@@ -44,7 +46,7 @@ func (h *Handler) ListPartStock(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true  "Part id"
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.StockTransaction
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /parts/{id}/stock/history  [get]
@@ -79,7 +81,7 @@ type adjustRequest struct {
 // @Produce     json
 // @Param       id       path      string                  true  "Part id"
 // @Param       request  body      map[string]interface{}  true  "Adjustment"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.StockItem
 // @Failure     400  {object}  map[string]interface{}
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
@@ -133,7 +135,7 @@ type moveRequest struct {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true  "Move request"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]string
 // @Failure     400  {object}  map[string]interface{}
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /stock/move  [post]

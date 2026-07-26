@@ -49,7 +49,7 @@ type partRequest struct {
 // @Param       category   query     string                  false  "Category id filter"
 // @Param       search     query     string                  false  "Search text"
 // @Param       top_level  query     string                  false  "Set to false to include all variants"
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.Part
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /parts  [get]
 func (h *Handler) ListParts(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +77,7 @@ func (h *Handler) ListParts(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true  "Part id"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.Part
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /parts/{id}  [get]
@@ -112,7 +112,7 @@ func (h *Handler) GetPart(w http.ResponseWriter, r *http.Request) {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true  "Part fields"
-// @Success     201  {object}  map[string]interface{}
+// @Success     201  {object}  models.Part
 // @Failure     400  {object}  map[string]interface{}
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /parts  [post]
@@ -147,7 +147,7 @@ func (h *Handler) CreatePart(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id       path      string                  true  "Part id"
 // @Param       request  body      map[string]interface{}  true  "Part fields"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.Part
 // @Failure     400  {object}  map[string]interface{}
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
@@ -187,7 +187,7 @@ func (h *Handler) UpdatePart(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true  "Part id"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]string
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /parts/{id}  [delete]
@@ -220,7 +220,7 @@ func (h *Handler) DeletePart(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id    path      string                  true  "Part id"
 // @Param       file  formData  file                    true  "Image file (.png/.jpg/.svg/.webp/.gif)"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.Part
 // @Failure     400  {object}  map[string]interface{}
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
@@ -266,7 +266,7 @@ func (h *Handler) UploadPartImage(w http.ResponseWriter, r *http.Request) {
 // @Tags        parts
 // @Produce     png
 // @Param       id   path      string                  true  "Part id"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {file}    binary
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /parts/{id}/image  [get]
 func (h *Handler) GetPartImage(w http.ResponseWriter, r *http.Request) {
@@ -361,7 +361,7 @@ func (h *Handler) resolveAlternatives(r *http.Request, mps []models.Manufacturer
 // @Tags        parts
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.ParameterTemplate
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /parameter-templates  [get]
 func (h *Handler) ListParameterTemplates(w http.ResponseWriter, r *http.Request) {
