@@ -12,9 +12,9 @@ import (
 )
 
 // BackupRepo exports and imports the whole instance as portable JSON — an
-// application-level backup, separate from a Postgres-level dump. Table order lists
-// parents before children; import disables FK checks anyway so a partial or
-// out-of-order file still restores.
+// application-level backup, separate from a Postgres-level dump. Import defers
+// foreign-key checks to COMMIT (SET CONSTRAINTS ALL DEFERRED), so a partial or
+// out-of-order file still restores without needing a superuser role.
 type BackupRepo struct{ pool *pgxpool.Pool }
 
 func NewBackupRepo(pool *pgxpool.Pool) *BackupRepo { return &BackupRepo{pool: pool} }
@@ -45,10 +45,14 @@ func (r *BackupRepo) ExportAll(ctx context.Context) (map[string]json.RawMessage,
 	return out, nil
 }
 
-// ImportAll restores an export. It runs in a transaction with foreign-key checks
-// disabled (session_replication_role = replica, superuser only), inserting each
-// table's rows and skipping any that already exist by primary key. Returns the
-// number of rows inserted per table.
+// ImportAll restores an export inside a single transaction. Foreign-key checks
+// are deferred to COMMIT with SET CONSTRAINTS ALL DEFERRED, so tables can be
+// inserted in any order (including self-referential rows such as a child category
+// before its parent). Every FK is DEFERRABLE as of migration 000023, and
+// SET CONSTRAINTS needs no special privilege, so this works as the non-superuser
+// app role that managed Postgres (CloudNativePG, RDS, etc.) provides. Rows that
+// already exist are skipped by primary key, making re-import idempotent. Returns
+// the number of rows inserted per table.
 func (r *BackupRepo) ImportAll(ctx context.Context, tables map[string]json.RawMessage) (map[string]int64, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -56,8 +60,8 @@ func (r *BackupRepo) ImportAll(ctx context.Context, tables map[string]json.RawMe
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := tx.Exec(ctx, `SET session_replication_role = replica`); err != nil {
-		return nil, fmt.Errorf("import needs a superuser database role (to defer foreign keys): %w", err)
+	if _, err := tx.Exec(ctx, `SET CONSTRAINTS ALL DEFERRED`); err != nil {
+		return nil, fmt.Errorf("deferring constraints for import: %w", err)
 	}
 
 	counts := make(map[string]int64)
@@ -75,11 +79,9 @@ func (r *BackupRepo) ImportAll(ctx context.Context, tables map[string]json.RawMe
 		counts[t] = tag.RowsAffected()
 	}
 
-	if _, err := tx.Exec(ctx, `SET session_replication_role = DEFAULT`); err != nil {
-		return nil, err
-	}
+	// Deferred FK checks fire here; a genuinely inconsistent export fails the commit.
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("commit import (foreign keys checked here): %w", err)
 	}
 	return counts, nil
 }
