@@ -19,7 +19,7 @@ import (
 // @Tags        catalog
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.Manufacturer
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /manufacturers [get]
 func (h *Handler) ListManufacturers(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +36,7 @@ func (h *Handler) ListManufacturers(w http.ResponseWriter, r *http.Request) {
 // @Tags        catalog
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.Supplier
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /suppliers [get]
 func (h *Handler) ListSuppliers(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +63,7 @@ type manufacturerPartRequest struct {
 // @Produce     json
 // @Param       id       path      string                  true   "identifier"
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.ManufacturerPart
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -98,7 +98,7 @@ func (h *Handler) CreateManufacturerPart(w http.ResponseWriter, r *http.Request)
 // @Produce     json
 // @Param       id       path      string                  true   "identifier"
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  map[string]string
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -135,7 +135,7 @@ func (h *Handler) UpdateManufacturerPart(w http.ResponseWriter, r *http.Request)
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string  true   "identifier"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]string
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /manufacturer-parts/{id} [delete]
@@ -177,7 +177,7 @@ type supplierPartRequest struct {
 // @Produce     json
 // @Param       id       path      string                  true   "identifier"
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  map[string]string
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -222,7 +222,7 @@ func (h *Handler) CreateSupplierPart(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string  true   "identifier"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]string
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /supplier-parts/{id} [delete]

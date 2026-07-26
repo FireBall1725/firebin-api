@@ -29,7 +29,7 @@ type projectRequest struct {
 // @Tags        projects
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.Project
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /projects  [get]
 func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true  "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.Project
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /projects  [post]
@@ -76,7 +76,7 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string  true  "identifier"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.Project
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /projects/{id}  [get]
@@ -105,7 +105,7 @@ func (h *Handler) GetProject(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id       path      string                  true  "identifier"
 // @Param       request  body      map[string]interface{}  true  "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.Project
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -169,7 +169,7 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id    path      string  true  "identifier"
 // @Param       file  formData  file    true  "KiCad file upload"
-// @Success     201   {object}  map[string]interface{}
+// @Success     201   {object}  models.Board
 // @Failure     400   {object}  map[string]interface{}
 // @Failure     401   {object}  map[string]interface{}
 // @Failure     404   {object}  map[string]interface{}
@@ -560,7 +560,7 @@ func (h *Handler) PreviewBoard(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string  true  "identifier"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.Board
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /boards/{id}  [get]
@@ -589,7 +589,7 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string  true  "identifier"
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.ProjectAsset
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /projects/{id}/assets  [get]
@@ -614,7 +614,7 @@ func (h *Handler) ListProjectAssets(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     octet-stream
 // @Param       id   path      string  true  "identifier"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {file}    binary
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /assets/{id}  [get]
@@ -676,7 +676,7 @@ type boardUpdate struct {
 // @Produce     json
 // @Param       id       path      string                  true  "identifier"
 // @Param       request  body      map[string]interface{}  true  "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.Board
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -826,7 +826,7 @@ func (h *Handler) rematchProject(ctx context.Context, projectID uuid.UUID) {
 // @Produce     json
 // @Param       id       path      string                  true  "identifier"
 // @Param       request  body      map[string]interface{}  true  "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.Board
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -870,7 +870,7 @@ func (h *Handler) CreateBlankBoard(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id    path      string  true  "identifier"
 // @Param       file  formData  file    true  "file upload"
-// @Success     201   {object}  map[string]interface{}
+// @Success     201   {object}  models.ProjectAsset
 // @Failure     400   {object}  map[string]interface{}
 // @Failure     401   {object}  map[string]interface{}
 // @Failure     404   {object}  map[string]interface{}
@@ -939,7 +939,7 @@ func (h *Handler) UploadBoardAsset(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id    path      string  true  "identifier"
 // @Param       file  formData  file    true  "cover image upload"
-// @Success     201   {object}  map[string]interface{}
+// @Success     201   {object}  models.ProjectAsset
 // @Failure     400   {object}  map[string]interface{}
 // @Failure     401   {object}  map[string]interface{}
 // @Failure     404   {object}  map[string]interface{}
@@ -1099,7 +1099,7 @@ func (h *Handler) applyMatch(ctx context.Context, projectID uuid.UUID, l *models
 // @Produce     json
 // @Param       id       path      string                  true  "identifier"
 // @Param       request  body      map[string]interface{}  true  "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.BOMLine
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -1145,7 +1145,7 @@ func (h *Handler) AddBOMLine(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id       path      string                  true  "identifier"
 // @Param       request  body      map[string]interface{}  true  "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.BOMLine
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}

@@ -20,7 +20,7 @@ import (
 // @Tags        account
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.User
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /me  [get]
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +42,7 @@ func validRole(role string) bool {
 // @Tags        users
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.User
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /users  [get]
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +71,7 @@ type createUserRequest struct {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.User
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /users  [post]
@@ -127,7 +127,7 @@ type updateUserRequest struct {
 // @Produce     json
 // @Param       id       path      string                  true   "user ID"
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.User
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -176,7 +176,7 @@ type passwordRequest struct {
 // @Produce     json
 // @Param       id       path      string                  true   "user ID"
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  map[string]string
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -214,7 +214,7 @@ func (h *Handler) ResetUserPassword(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true   "user ID"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]string
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /users/{id}  [delete]
@@ -258,7 +258,7 @@ type changePasswordRequest struct {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  map[string]string
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /users/me/password  [patch]

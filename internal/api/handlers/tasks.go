@@ -13,6 +13,7 @@ import (
 	"github.com/firelabsca/firebin-api/internal/api/middleware"
 	"github.com/firelabsca/firebin-api/internal/api/respond"
 	"github.com/firelabsca/firebin-api/internal/jobs"
+	"github.com/firelabsca/firebin-api/internal/models"
 	"github.com/google/uuid"
 )
 
@@ -24,7 +25,7 @@ import (
 // @Tags        tasks
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]int64
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /tasks  [delete]
 func (h *Handler) ClearTasks(w http.ResponseWriter, r *http.Request) {
@@ -45,13 +46,14 @@ func (h *Handler) ClearTasks(w http.ResponseWriter, r *http.Request) {
 // @Param       status  query     string  false  "filter by status"
 // @Param       type    query     string  false  "filter by task type"
 // @Param       limit   query     int     false  "maximum tasks to return"
-// @Success     200     {array}   map[string]interface{}
+// @Success     200     {array}   models.Task
 // @Failure     401     {object}  map[string]interface{}
 // @Router      /tasks  [get]
 func (h *Handler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	typ := r.URL.Query().Get("type")
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	var tasks []models.Task
 	tasks, err := h.Jobs.Store().List(r.Context(), status, typ, limit)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not list tasks")
@@ -67,7 +69,7 @@ func (h *Handler) ListTasks(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true   "task ID"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.Task
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /tasks/{id}  [get]
@@ -96,7 +98,7 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id        path      string                  true   "task ID"
 // @Param       after_id  query     int                     false  "return logs after this id"
-// @Success     200       {array}   map[string]interface{}
+// @Success     200       {array}   models.JobLog
 // @Failure     401       {object}  map[string]interface{}
 // @Failure     404       {object}  map[string]interface{}
 // @Router      /tasks/{id}/logs  [get]
@@ -121,7 +123,7 @@ func (h *Handler) GetTaskLogs(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string                  true   "task ID"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]string
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /tasks/{id}/cancel  [post]

@@ -167,7 +167,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  map[string]string
 // @Failure     400      {object}  map[string]interface{}
 // @Router      /auth/logout  [post]
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

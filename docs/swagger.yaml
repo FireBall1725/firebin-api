@@ -1,5 +1,196 @@
 basePath: /api/v1
 definitions:
+  github_com_firelabsca_firebin-api_internal_models.APIToken:
+    properties:
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      last_used_at:
+        type: string
+      name:
+        type: string
+      revoked_at:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      token_suffix:
+        type: string
+      user_id:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.BOMLine:
+    properties:
+      board_id:
+        type: string
+      description:
+        type: string
+      footprint:
+        type: string
+      id:
+        type: string
+      ipn:
+        type: string
+      manufacturer:
+        type: string
+      match_kind:
+        type: string
+      mpn:
+        type: string
+      part_id:
+        type: string
+      part_name:
+        type: string
+      position:
+        type: integer
+      quantity:
+        type: integer
+      refs:
+        type: string
+      supplier_sku:
+        type: string
+      value:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.Board:
+    properties:
+      copies:
+        description: panel = N-up, board = 1
+        type: integer
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      kind:
+        description: board | panel
+        type: string
+      line_count:
+        type: integer
+      lines:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.BOMLine'
+        type: array
+      name:
+        type: string
+      position:
+        type: integer
+      project_id:
+        type: string
+      revision:
+        type: string
+      source_filename:
+        type: string
+      source_format:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.Category:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      parent_id:
+        type: string
+      part_count:
+        description: parts directly in this category (List only)
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.JobLog:
+    properties:
+      id:
+        type: integer
+      level:
+        type: string
+      message:
+        type: string
+      task_id:
+        type: string
+      ts:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.LabelMedia:
+    properties:
+      brand:
+        type: string
+      builtin:
+        type: boolean
+      code:
+        type: string
+      cols:
+        type: integer
+      corner_radius:
+        type: number
+      cut_guides:
+        description: draw cut outlines (generic full-page stock)
+        type: boolean
+      id:
+        type: string
+      kind:
+        description: '"sheet" (roll/label-printer media later)'
+        type: string
+      label_h:
+        type: number
+      label_w:
+        type: number
+      name:
+        type: string
+      page_h:
+        type: number
+      page_w:
+        type: number
+      pitch_x:
+        type: number
+      pitch_y:
+        type: number
+      rows:
+        type: integer
+      x0:
+        type: number
+      y0:
+        type: number
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.LabelTemplate:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      elements:
+        items:
+          type: integer
+        type: array
+      id:
+        type: string
+      label_media_id:
+        type: string
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.Manufacturer:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      website:
+        type: string
+    type: object
   github_com_firelabsca_firebin-api_internal_models.ManufacturerPart:
     properties:
       created_at:
@@ -132,6 +323,75 @@ definitions:
       value:
         type: string
     type: object
+  github_com_firelabsca_firebin-api_internal_models.PickEntry:
+    properties:
+      location_id:
+        type: string
+      location_name:
+        description: '"" when the lot has no bin'
+        type: string
+      part_id:
+        type: string
+      part_name:
+        type: string
+      quantity:
+        type: number
+      stock_item_id:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.PickList:
+    properties:
+      board_id:
+        type: string
+      board_name:
+        type: string
+      copies:
+        description: panel N-up (per board)
+        type: integer
+      entries:
+        description: sorted by location, then part
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PickEntry'
+        type: array
+      quantity:
+        description: boards to build
+        type: integer
+      shortfalls:
+        description: parts short of stock
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PickShortfall'
+        type: array
+      total_units:
+        type: number
+      unmatched:
+        description: BOM lines with no matched part
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PickUnmatched'
+        type: array
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.PickShortfall:
+    properties:
+      available:
+        type: number
+      part_id:
+        type: string
+      part_name:
+        type: string
+      required:
+        type: number
+      short:
+        type: number
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.PickUnmatched:
+    properties:
+      quantity:
+        description: total needed across the whole build
+        type: integer
+      refs:
+        type: string
+      value:
+        type: string
+    type: object
   github_com_firelabsca_firebin-api_internal_models.PriceBreak:
     properties:
       currency:
@@ -142,6 +402,70 @@ definitions:
         type: number
       quantity:
         type: number
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.Project:
+    properties:
+      board_count:
+        type: integer
+      boards:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Board'
+        type: array
+      cover_asset_id:
+        description: |-
+          Cover thumbnail for project cards: an uploaded image, else the first
+          board's render. Computed on read.
+        type: string
+      cover_asset_kind:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.ProjectAsset:
+    properties:
+      board_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      kind:
+        type: string
+      mime:
+        type: string
+      name:
+        type: string
+      project_id:
+        type: string
+      size:
+        type: integer
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.Stats:
+    properties:
+      inventory_value:
+        type: number
+      locations_count:
+        type: integer
+      low_stock_count:
+        type: integer
+      parts_count:
+        type: integer
+      total_units:
+        type: number
+      variants_count:
+        type: integer
     type: object
   github_com_firelabsca_firebin-api_internal_models.StockItem:
     properties:
@@ -218,6 +542,36 @@ definitions:
       user_id:
         type: string
     type: object
+  github_com_firelabsca_firebin-api_internal_models.StorageLocation:
+    properties:
+      barcode:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      parent_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.Supplier:
+    properties:
+      id:
+        type: string
+      is_distributor:
+        type: boolean
+      key:
+        type: string
+      name:
+        type: string
+      website:
+        type: string
+    type: object
   github_com_firelabsca_firebin-api_internal_models.SupplierPart:
     properties:
       id:
@@ -239,6 +593,65 @@ definitions:
       supplier_name:
         type: string
       url:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.Task:
+    properties:
+      args_summary:
+        items:
+          type: integer
+        type: array
+      attempt:
+        type: integer
+      created_at:
+        type: string
+      created_by:
+        type: string
+      error:
+        type: string
+      finished_at:
+        type: string
+      id:
+        type: string
+      max_attempts:
+        type: integer
+      priority:
+        type: integer
+      progress_done:
+        type: integer
+      progress_total:
+        type: integer
+      result:
+        items:
+          type: integer
+        type: array
+      started_at:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.User:
+    properties:
+      created_at:
+        type: string
+      display_name:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      is_instance_admin:
+        type: boolean
+      role:
+        description: admin | member | viewer
+        type: string
+      updated_at:
+        type: string
+      username:
         type: string
     type: object
 host: localhost:8080
@@ -302,8 +715,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            type: file
         "401":
           description: Unauthorized
           schema:
@@ -373,7 +785,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "400":
           description: Bad Request
@@ -494,8 +907,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Board'
         "401":
           description: Unauthorized
           schema:
@@ -534,8 +946,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Board'
         "400":
           description: Bad Request
           schema:
@@ -578,8 +989,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.ProjectAsset'
         "400":
           description: Bad Request
           schema:
@@ -624,8 +1034,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.BOMLine'
         "400":
           description: Bad Request
           schema:
@@ -665,8 +1074,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PickList'
         "401":
           description: Unauthorized
           schema:
@@ -692,8 +1100,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Category'
             type: array
         "401":
           description: Unauthorized
@@ -723,8 +1130,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Category'
         "400":
           description: Bad Request
           schema:
@@ -755,7 +1161,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "401":
           description: Unauthorized
@@ -795,8 +1202,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Category'
         "400":
           description: Bad Request
           schema:
@@ -1014,8 +1420,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelMedia'
             type: array
         "401":
           description: Unauthorized
@@ -1046,8 +1451,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelMedia'
         "400":
           description: Bad Request
           schema:
@@ -1115,8 +1519,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            type: file
         "400":
           description: Bad Request
           schema:
@@ -1152,8 +1555,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            type: file
         "400":
           description: Bad Request
           schema:
@@ -1216,8 +1618,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelTemplate'
             type: array
         "401":
           description: Unauthorized
@@ -1247,8 +1648,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelTemplate'
         "400":
           description: Bad Request
           schema:
@@ -1319,8 +1719,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.LabelTemplate'
         "400":
           description: Bad Request
           schema:
@@ -1396,8 +1795,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.BOMLine'
         "400":
           description: Bad Request
           schema:
@@ -1428,8 +1826,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation'
             type: array
         "401":
           description: Unauthorized
@@ -1459,8 +1856,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation'
         "400":
           description: Bad Request
           schema:
@@ -1522,8 +1918,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation'
         "401":
           description: Unauthorized
           schema:
@@ -1562,8 +1957,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation'
         "400":
           description: Bad Request
           schema:
@@ -1600,8 +1994,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem'
             type: array
         "401":
           description: Unauthorized
@@ -1637,8 +2030,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            type: file
         "400":
           description: Bad Request
           schema:
@@ -1705,8 +2097,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StorageLocation'
         "401":
           description: Unauthorized
           schema:
@@ -1732,7 +2123,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "401":
           description: Unauthorized
@@ -1773,7 +2165,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "400":
           description: Bad Request
@@ -1819,7 +2212,8 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "400":
           description: Bad Request
@@ -1851,8 +2245,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Manufacturer'
             type: array
         "401":
           description: Unauthorized
@@ -1873,8 +2266,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.User'
         "401":
           description: Unauthorized
           schema:
@@ -2220,8 +2612,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.ManufacturerPart'
         "400":
           description: Bad Request
           schema:
@@ -2436,8 +2827,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Part'
             type: array
         "401":
           description: Unauthorized
@@ -2459,8 +2849,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Project'
             type: array
         "401":
           description: Unauthorized
@@ -2490,8 +2879,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Project'
         "400":
           description: Bad Request
           schema:
@@ -2553,8 +2941,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Project'
         "401":
           description: Unauthorized
           schema:
@@ -2593,8 +2980,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Project'
         "400":
           description: Bad Request
           schema:
@@ -2631,8 +3017,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.ProjectAsset'
             type: array
         "401":
           description: Unauthorized
@@ -2671,8 +3056,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Board'
         "400":
           description: Bad Request
           schema:
@@ -2717,8 +3101,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Board'
         "400":
           description: Bad Request
           schema:
@@ -2836,8 +3219,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.ProjectAsset'
         "400":
           description: Bad Request
           schema:
@@ -3101,8 +3483,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Stats'
         "401":
           description: Unauthorized
           schema:
@@ -3128,8 +3509,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem'
         "401":
           description: Unauthorized
           schema:
@@ -3186,8 +3566,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            type: file
         "400":
           description: Bad Request
           schema:
@@ -3258,8 +3637,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem'
         "400":
           description: Bad Request
           schema:
@@ -3294,7 +3672,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "400":
           description: Bad Request
@@ -3358,8 +3737,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockTransaction'
             type: array
         "401":
           description: Unauthorized
@@ -3390,8 +3768,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem'
         "400":
           description: Bad Request
           schema:
@@ -3422,8 +3799,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem'
         "401":
           description: Unauthorized
           schema:
@@ -3453,8 +3829,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem'
         "400":
           description: Bad Request
           schema:
@@ -3485,7 +3860,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "401":
           description: Unauthorized
@@ -3512,8 +3888,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Supplier'
             type: array
         "401":
           description: Unauthorized
@@ -3535,7 +3910,9 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              format: int64
+              type: integer
             type: object
         "401":
           description: Unauthorized
@@ -3569,8 +3946,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Task'
             type: array
         "401":
           description: Unauthorized
@@ -3597,8 +3973,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Task'
         "401":
           description: Unauthorized
           schema:
@@ -3629,7 +4004,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "401":
           description: Unauthorized
@@ -3666,8 +4042,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.JobLog'
             type: array
         "401":
           description: Unauthorized
@@ -3726,8 +4101,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.APIToken'
             type: array
         "401":
           description: Unauthorized
@@ -3790,7 +4164,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "401":
           description: Unauthorized
@@ -3817,8 +4192,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.User'
             type: array
         "401":
           description: Unauthorized
@@ -3849,8 +4223,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.User'
         "400":
           description: Bad Request
           schema:
@@ -3881,7 +4254,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "401":
           description: Unauthorized
@@ -3922,8 +4296,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.User'
         "400":
           description: Bad Request
           schema:
@@ -3968,7 +4341,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "400":
           description: Bad Request
@@ -4010,7 +4384,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "400":
           description: Bad Request

@@ -24,7 +24,7 @@ import (
 // @Produce     json
 // @Param       id        path      string   true   "identifier"
 // @Param       quantity  query     integer  false  "number of boards to build"
-// @Success     200       {object}  map[string]interface{}
+// @Success     200       {object}  models.PickList
 // @Failure     401       {object}  map[string]interface{}
 // @Failure     404       {object}  map[string]interface{}
 // @Router      /boards/{id}/pick-list  [get]

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/firelabsca/firebin-api/internal/api/respond"
+	"github.com/firelabsca/firebin-api/internal/models"
 )
 
 // GetStats returns the dashboard summary.
@@ -15,7 +16,7 @@ import (
 // @Tags        dashboard
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  models.Stats
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /stats [get]
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
@@ -33,10 +34,11 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 // @Tags        dashboard
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.Part
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /parts/low-stock [get]
 func (h *Handler) LowStock(w http.ResponseWriter, r *http.Request) {
+	var parts []models.Part
 	parts, err := h.Parts.ListLowStock(r.Context())
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not load low stock")
@@ -51,7 +53,7 @@ func (h *Handler) LowStock(w http.ResponseWriter, r *http.Request) {
 // @Tags        dashboard
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.StockTransaction
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /stock/recent [get]
 func (h *Handler) RecentActivity(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +72,7 @@ func (h *Handler) RecentActivity(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string  true   "identifier"
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.StockItem
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /locations/{id}/stock [get]

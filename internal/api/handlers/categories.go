@@ -25,7 +25,7 @@ type categoryRequest struct {
 // @Tags        categories
 // @Security    BearerAuth
 // @Produce     json
-// @Success     200  {array}   map[string]interface{}
+// @Success     200  {array}   models.Category
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /categories [get]
 func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +44,7 @@ func (h *Handler) ListCategories(w http.ResponseWriter, r *http.Request) {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     201      {object}  map[string]interface{}
+// @Success     201      {object}  models.Category
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /categories [post]
@@ -74,7 +74,7 @@ func (h *Handler) CreateCategory(w http.ResponseWriter, r *http.Request) {
 // @Produce     json
 // @Param       id       path      string                  true   "identifier"
 // @Param       request  body      map[string]interface{}  true   "request body"
-// @Success     200      {object}  map[string]interface{}
+// @Success     200      {object}  models.Category
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Failure     404      {object}  map[string]interface{}
@@ -108,7 +108,7 @@ func (h *Handler) UpdateCategory(w http.ResponseWriter, r *http.Request) {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       id   path      string  true   "identifier"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]string
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
 // @Router      /categories/{id} [delete]
