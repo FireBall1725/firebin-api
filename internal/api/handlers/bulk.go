@@ -26,7 +26,7 @@ type bulkMoveRequest struct {
 // @Accept      json
 // @Produce     json
 // @Param       request  body      map[string]interface{}  true  "Part ids and location"
-// @Success     200  {object}  map[string]interface{}
+// @Success     200  {object}  map[string]int
 // @Failure     400  {object}  map[string]interface{}
 // @Failure     401  {object}  map[string]interface{}
 // @Router      /parts/bulk/move  [post]

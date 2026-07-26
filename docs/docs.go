@@ -2503,8 +2503,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.ParameterTemplate"
                             }
                         }
                     },
@@ -2559,8 +2558,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Part"
                             }
                         }
                     },
@@ -2606,8 +2604,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Part"
                         }
                     },
                     "400": {
@@ -2717,7 +2714,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "integer"
+                            }
                         }
                     },
                     "400": {
@@ -2801,8 +2800,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Part"
                         }
                     },
                     "401": {
@@ -2849,7 +2847,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "401": {
@@ -2908,8 +2908,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Part"
                         }
                     },
                     "400": {
@@ -3028,8 +3027,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "type": "file"
                         }
                     },
                     "404": {
@@ -3078,8 +3076,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Part"
                         }
                     },
                     "400": {
@@ -3205,8 +3202,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem"
                             }
                         }
                     },
@@ -3268,8 +3264,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem"
                         }
                     },
                     "400": {
@@ -3326,8 +3321,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.StockTransaction"
                             }
                         }
                     },
@@ -4687,7 +4681,9 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "object",
-                            "additionalProperties": true
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -5736,6 +5732,369 @@ const docTemplate = `{
                             "additionalProperties": true
                         }
                     }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_firelabsca_firebin-api_internal_models.ManufacturerPart": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "datasheet_url": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "manufacturer_id": {
+                    "type": "string"
+                },
+                "manufacturer_name": {
+                    "type": "string"
+                },
+                "mpn": {
+                    "type": "string"
+                },
+                "part_id": {
+                    "type": "string"
+                },
+                "supplier_parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.SupplierPart"
+                    }
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.ParameterTemplate": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "units": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.Part": {
+            "type": "object",
+            "properties": {
+                "alternatives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.PartAlternative"
+                    }
+                },
+                "barcode": {
+                    "type": "string"
+                },
+                "category_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "default_location_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "image_path": {
+                    "type": "string"
+                },
+                "ipn": {
+                    "description": "FireBin internal part number",
+                    "type": "string"
+                },
+                "is_assembly": {
+                    "type": "boolean"
+                },
+                "is_component": {
+                    "type": "boolean"
+                },
+                "is_purchaseable": {
+                    "type": "boolean"
+                },
+                "is_template": {
+                    "type": "boolean"
+                },
+                "is_trackable": {
+                    "type": "boolean"
+                },
+                "keywords": {
+                    "type": "string"
+                },
+                "manufacturer_parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.ManufacturerPart"
+                    }
+                },
+                "minimum_stock": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "package": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.PartParameter"
+                    }
+                },
+                "primary_location": {
+                    "type": "string"
+                },
+                "primary_location_id": {
+                    "type": "string"
+                },
+                "primary_manufacturer": {
+                    "type": "string"
+                },
+                "primary_mpn": {
+                    "description": "Primary MPN/manufacturer and bin, for the parts list (from List's laterals).",
+                    "type": "string"
+                },
+                "total_stock": {
+                    "description": "Joined / computed, populated on some reads.",
+                    "type": "number"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "variant_count": {
+                    "type": "integer"
+                },
+                "variant_of": {
+                    "type": "string"
+                },
+                "variants": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Part"
+                    }
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.PartAlternative": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "manufacturer": {
+                    "type": "string"
+                },
+                "mpn": {
+                    "type": "string"
+                },
+                "part_id": {
+                    "description": "set if we stock it",
+                    "type": "string"
+                },
+                "part_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.PartParameter": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "template_id": {
+                    "type": "string"
+                },
+                "template_name": {
+                    "type": "string"
+                },
+                "units": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.PriceBreak": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "quantity": {
+                    "type": "number"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.StockItem": {
+            "type": "object",
+            "properties": {
+                "added_at": {
+                    "type": "string"
+                },
+                "barcode": {
+                    "description": "scannable lot identity (a mini spool)",
+                    "type": "string"
+                },
+                "batch": {
+                    "type": "string"
+                },
+                "category_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "image_path": {
+                    "type": "string"
+                },
+                "location_id": {
+                    "type": "string"
+                },
+                "location_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "human label for the lot (\"Mini spool #1\")",
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "part_id": {
+                    "type": "string"
+                },
+                "part_name": {
+                    "type": "string"
+                },
+                "purchase_price": {
+                    "type": "number"
+                },
+                "quantity": {
+                    "type": "number"
+                },
+                "serial": {
+                    "type": "string"
+                },
+                "split_from": {
+                    "description": "the lot this was cut from",
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "supplier_part_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.StockTransaction": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "delta": {
+                    "type": "number"
+                },
+                "from_location_id": {
+                    "type": "string"
+                },
+                "from_location_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "part_id": {
+                    "type": "string"
+                },
+                "part_name": {
+                    "type": "string"
+                },
+                "resulting_quantity": {
+                    "type": "number"
+                },
+                "stock_item_id": {
+                    "type": "string"
+                },
+                "to_location_id": {
+                    "type": "string"
+                },
+                "to_location_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.SupplierPart": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "manufacturer_part_id": {
+                    "type": "string"
+                },
+                "moq": {
+                    "type": "number"
+                },
+                "packaging": {
+                    "type": "string"
+                },
+                "pricing": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.PriceBreak"
+                    }
+                },
+                "sku": {
+                    "type": "string"
+                },
+                "supplier_id": {
+                    "type": "string"
+                },
+                "supplier_name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
         }

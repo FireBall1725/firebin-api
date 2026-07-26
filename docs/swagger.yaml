@@ -1,4 +1,246 @@
 basePath: /api/v1
+definitions:
+  github_com_firelabsca_firebin-api_internal_models.ManufacturerPart:
+    properties:
+      created_at:
+        type: string
+      datasheet_url:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      manufacturer_id:
+        type: string
+      manufacturer_name:
+        type: string
+      mpn:
+        type: string
+      part_id:
+        type: string
+      supplier_parts:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.SupplierPart'
+        type: array
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.ParameterTemplate:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      units:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.Part:
+    properties:
+      alternatives:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PartAlternative'
+        type: array
+      barcode:
+        type: string
+      category_id:
+        type: string
+      created_at:
+        type: string
+      default_location_id:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      image_path:
+        type: string
+      ipn:
+        description: FireBin internal part number
+        type: string
+      is_assembly:
+        type: boolean
+      is_component:
+        type: boolean
+      is_purchaseable:
+        type: boolean
+      is_template:
+        type: boolean
+      is_trackable:
+        type: boolean
+      keywords:
+        type: string
+      manufacturer_parts:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.ManufacturerPart'
+        type: array
+      minimum_stock:
+        type: number
+      name:
+        type: string
+      package:
+        type: string
+      parameters:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PartParameter'
+        type: array
+      primary_location:
+        type: string
+      primary_location_id:
+        type: string
+      primary_manufacturer:
+        type: string
+      primary_mpn:
+        description: Primary MPN/manufacturer and bin, for the parts list (from List's
+          laterals).
+        type: string
+      total_stock:
+        description: Joined / computed, populated on some reads.
+        type: number
+      updated_at:
+        type: string
+      variant_count:
+        type: integer
+      variant_of:
+        type: string
+      variants:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Part'
+        type: array
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.PartAlternative:
+    properties:
+      description:
+        type: string
+      manufacturer:
+        type: string
+      mpn:
+        type: string
+      part_id:
+        description: set if we stock it
+        type: string
+      part_name:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.PartParameter:
+    properties:
+      id:
+        type: string
+      template_id:
+        type: string
+      template_name:
+        type: string
+      units:
+        type: string
+      value:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.PriceBreak:
+    properties:
+      currency:
+        type: string
+      id:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: number
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.StockItem:
+    properties:
+      added_at:
+        type: string
+      barcode:
+        description: scannable lot identity (a mini spool)
+        type: string
+      batch:
+        type: string
+      category_name:
+        type: string
+      id:
+        type: string
+      image_path:
+        type: string
+      location_id:
+        type: string
+      location_name:
+        type: string
+      name:
+        description: 'human label for the lot ("Mini spool #1")'
+        type: string
+      note:
+        type: string
+      part_id:
+        type: string
+      part_name:
+        type: string
+      purchase_price:
+        type: number
+      quantity:
+        type: number
+      serial:
+        type: string
+      split_from:
+        description: the lot this was cut from
+        type: string
+      status:
+        type: string
+      supplier_part_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.StockTransaction:
+    properties:
+      created_at:
+        type: string
+      delta:
+        type: number
+      from_location_id:
+        type: string
+      from_location_name:
+        type: string
+      id:
+        type: string
+      kind:
+        type: string
+      note:
+        type: string
+      part_id:
+        type: string
+      part_name:
+        type: string
+      resulting_quantity:
+        type: number
+      stock_item_id:
+        type: string
+      to_location_id:
+        type: string
+      to_location_name:
+        type: string
+      user_id:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.SupplierPart:
+    properties:
+      id:
+        type: string
+      manufacturer_part_id:
+        type: string
+      moq:
+        type: number
+      packaging:
+        type: string
+      pricing:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PriceBreak'
+        type: array
+      sku:
+        type: string
+      supplier_id:
+        type: string
+      supplier_name:
+        type: string
+      url:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -1653,8 +1895,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.ParameterTemplate'
             type: array
         "401":
           description: Unauthorized
@@ -1690,8 +1931,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Part'
             type: array
         "401":
           description: Unauthorized
@@ -1721,8 +1961,7 @@ paths:
         "201":
           description: Created
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Part'
         "400":
           description: Bad Request
           schema:
@@ -1753,7 +1992,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "401":
           description: Unauthorized
@@ -1784,8 +2024,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Part'
         "401":
           description: Unauthorized
           schema:
@@ -1824,8 +2063,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Part'
         "400":
           description: Bad Request
           schema:
@@ -1907,8 +2145,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            type: file
         "404":
           description: Not Found
           schema:
@@ -1938,8 +2175,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Part'
         "400":
           description: Bad Request
           schema:
@@ -2022,8 +2258,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem'
             type: array
         "401":
           description: Unauthorized
@@ -2064,8 +2299,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockItem'
         "400":
           description: Bad Request
           schema:
@@ -2102,8 +2336,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.StockTransaction'
             type: array
         "401":
           description: Unauthorized
@@ -2175,7 +2408,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: integer
             type: object
         "400":
           description: Bad Request
@@ -3096,7 +3330,8 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
+            additionalProperties:
+              type: string
             type: object
         "400":
           description: Bad Request
