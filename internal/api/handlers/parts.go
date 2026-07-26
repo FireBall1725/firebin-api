@@ -41,6 +41,17 @@ type partRequest struct {
 // ListParts lists parts. Query params: category, search, top_level (default
 // true so the catalog view shows templates + standalone parts, not every
 // variant flattened).
+// @Summary     List parts
+// @Description List parts, optionally filtered by category, search text, and top-level flag.
+// @Tags        parts
+// @Security    BearerAuth
+// @Produce     json
+// @Param       category   query     string                  false  "Category id filter"
+// @Param       search     query     string                  false  "Search text"
+// @Param       top_level  query     string                  false  "Set to false to include all variants"
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /parts  [get]
 func (h *Handler) ListParts(w http.ResponseWriter, r *http.Request) {
 	opts := repository.ListOptions{TopLevel: r.URL.Query().Get("top_level") != "false"}
 	opts.Search = r.URL.Query().Get("search")
@@ -60,6 +71,16 @@ func (h *Handler) ListParts(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, parts)
 }
 
+// @Summary     Get part
+// @Description Get a part with its manufacturer parts and cached alternates.
+// @Tags        parts
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true  "Part id"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /parts/{id}  [get]
 func (h *Handler) GetPart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -84,6 +105,17 @@ func (h *Handler) GetPart(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, p)
 }
 
+// @Summary     Create part
+// @Description Create a part with optional parameters.
+// @Tags        parts
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true  "Part fields"
+// @Success     201  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /parts  [post]
 func (h *Handler) CreatePart(w http.ResponseWriter, r *http.Request) {
 	var req partRequest
 	if !respond.Decode(w, r, &req) {
@@ -107,6 +139,19 @@ func (h *Handler) CreatePart(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, full)
 }
 
+// @Summary     Update part
+// @Description Update a part and its parameters.
+// @Tags        parts
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true  "Part id"
+// @Param       request  body      map[string]interface{}  true  "Part fields"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /parts/{id}  [patch]
 func (h *Handler) UpdatePart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -136,6 +181,16 @@ func (h *Handler) UpdatePart(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, full)
 }
 
+// @Summary     Delete part
+// @Description Delete a part by id.
+// @Tags        parts
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true  "Part id"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /parts/{id}  [delete]
 func (h *Handler) DeletePart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -157,6 +212,19 @@ func (h *Handler) DeletePart(w http.ResponseWriter, r *http.Request) {
 // UploadPartImage stores a custom image for a part (replacing any existing) and
 // points parts.image_path at the serving endpoint. Bundled symbols don't come
 // through here — they're just a "/symbols/<name>.svg" path set via UpdatePart.
+// @Summary     Upload part image
+// @Description Store a custom image for a part.
+// @Tags        parts
+// @Security    BearerAuth
+// @Accept      multipart/form-data
+// @Produce     json
+// @Param       id    path      string                  true  "Part id"
+// @Param       file  formData  file                    true  "Image file (.png/.jpg/.svg/.webp/.gif)"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /parts/{id}/image  [post]
 func (h *Handler) UploadPartImage(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -193,6 +261,14 @@ func (h *Handler) UploadPartImage(w http.ResponseWriter, r *http.Request) {
 
 // GetPartImage serves a part's uploaded custom image. Public (no auth) so it can
 // be used directly as an <img src>, like the static /symbols/*.svg files.
+// @Summary     Get part image
+// @Description Serve a part's uploaded custom image.
+// @Tags        parts
+// @Produce     png
+// @Param       id   path      string                  true  "Part id"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /parts/{id}/image  [get]
 func (h *Handler) GetPartImage(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -280,6 +356,14 @@ func (h *Handler) resolveAlternatives(r *http.Request, mps []models.Manufacturer
 
 // ListParameterTemplates returns known parameter names for the client's
 // name-typeahead (so users reuse names instead of coining misspellings).
+// @Summary     List parameter templates
+// @Description Return known parameter names for the client typeahead.
+// @Tags        parts
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /parameter-templates  [get]
 func (h *Handler) ListParameterTemplates(w http.ResponseWriter, r *http.Request) {
 	t, err := h.Parts.ListParameterTemplates(r.Context())
 	if err != nil {

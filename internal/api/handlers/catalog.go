@@ -14,6 +14,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// @Summary     List manufacturers
+// @Description Return all manufacturers in the catalog.
+// @Tags        catalog
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /manufacturers [get]
 func (h *Handler) ListManufacturers(w http.ResponseWriter, r *http.Request) {
 	m, err := h.Catalog.ListManufacturers(r.Context())
 	if err != nil {
@@ -23,6 +31,14 @@ func (h *Handler) ListManufacturers(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, m)
 }
 
+// @Summary     List suppliers
+// @Description Return all suppliers in the catalog.
+// @Tags        catalog
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /suppliers [get]
 func (h *Handler) ListSuppliers(w http.ResponseWriter, r *http.Request) {
 	s, err := h.Catalog.ListSuppliers(r.Context())
 	if err != nil {
@@ -39,6 +55,19 @@ type manufacturerPartRequest struct {
 }
 
 // CreateManufacturerPart adds an MPN (and its brand) to a part.
+// @Summary     Create manufacturer part
+// @Description Add an MPN and its brand to a part.
+// @Tags        catalog
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true   "identifier"
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /parts/{id}/manufacturer-parts [post]
 func (h *Handler) CreateManufacturerPart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -61,6 +90,19 @@ func (h *Handler) CreateManufacturerPart(w http.ResponseWriter, r *http.Request)
 	respond.JSON(w, http.StatusCreated, mp)
 }
 
+// @Summary     Update manufacturer part
+// @Description Update an existing manufacturer part's MPN, brand, or datasheet URL.
+// @Tags        catalog
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true   "identifier"
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /manufacturer-parts/{id} [patch]
 func (h *Handler) UpdateManufacturerPart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -87,6 +129,16 @@ func (h *Handler) UpdateManufacturerPart(w http.ResponseWriter, r *http.Request)
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
+// @Summary     Delete manufacturer part
+// @Description Remove a manufacturer part from a part.
+// @Tags        catalog
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true   "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /manufacturer-parts/{id} [delete]
 func (h *Handler) DeleteManufacturerPart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -117,6 +169,19 @@ type supplierPartRequest struct {
 
 // CreateSupplierPart adds a vendor SKU (and price breaks) to a manufacturer part.
 // Accepts either a supplier_id or a supplier name (created on demand).
+// @Summary     Create supplier part
+// @Description Add a vendor SKU and its price breaks to a manufacturer part.
+// @Tags        catalog
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true   "identifier"
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /manufacturer-parts/{id}/supplier-parts [post]
 func (h *Handler) CreateSupplierPart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r) // manufacturer_part id
 	if !ok {
@@ -151,6 +216,16 @@ func (h *Handler) CreateSupplierPart(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, map[string]string{"id": spID.String()})
 }
 
+// @Summary     Delete supplier part
+// @Description Remove a supplier part (vendor SKU) from a manufacturer part.
+// @Tags        catalog
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true   "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /supplier-parts/{id} [delete]
 func (h *Handler) DeleteSupplierPart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {

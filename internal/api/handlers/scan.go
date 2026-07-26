@@ -33,6 +33,17 @@ type scanResponse struct {
 // if its MPN already exists in the catalog, returns the matching part so the
 // client can jump straight to "add stock". Otherwise the client offers to
 // create a new part prefilled from the parsed fields.
+// @Summary     Scan barcode
+// @Description Parse a decoded distributor barcode and return a matching part when its MPN already exists.
+// @Tags        scan
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true  "Scan request"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /scan  [post]
 func (h *Handler) Scan(w http.ResponseWriter, r *http.Request) {
 	var req scanRequest
 	if !respond.Decode(w, r, &req) {

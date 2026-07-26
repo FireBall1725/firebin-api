@@ -29,6 +29,17 @@ type createPATResponse struct {
 }
 
 // CreatePAT mints a new personal access token for the authenticated user.
+// @Summary     Create a personal access token
+// @Description Mint a new personal access token for the authenticated user; the raw token is shown once.
+// @Tags        tokens
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /tokens  [post]
 func (h *Handler) CreatePAT(w http.ResponseWriter, r *http.Request) {
 	var req createPATRequest
 	if !respond.Decode(w, r, &req) {
@@ -65,6 +76,14 @@ func (h *Handler) CreatePAT(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListPATs returns the caller's tokens (metadata only, never the raw values).
+// @Summary     List personal access tokens
+// @Description Return the caller's tokens as metadata only, never the raw values.
+// @Tags        tokens
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /tokens  [get]
 func (h *Handler) ListPATs(w http.ResponseWriter, r *http.Request) {
 	tokens, err := h.Tokens.ListPATs(r.Context(), middleware.UserID(r.Context()))
 	if err != nil {
@@ -78,6 +97,16 @@ func (h *Handler) ListPATs(w http.ResponseWriter, r *http.Request) {
 }
 
 // RevokePAT revokes one of the caller's tokens by id.
+// @Summary     Revoke a personal access token
+// @Description Revoke one of the caller's tokens by id.
+// @Tags        tokens
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true   "token ID"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /tokens/{id}  [delete]
 func (h *Handler) RevokePAT(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {

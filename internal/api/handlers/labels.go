@@ -83,6 +83,17 @@ func (h *Handler) resolveOne(ctx context.Context, mediaID, partID uuid.UUID, raw
 
 // PreviewLabel renders the given (possibly unsaved) template elements for one
 // part as a single-label PDF sized to the label — the designer's live preview.
+// @Summary     Preview a label
+// @Description Render the given template elements for one part as a single-label PDF.
+// @Tags        labels
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     application/pdf
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /labels/preview  [post]
 func (h *Handler) PreviewLabel(w http.ResponseWriter, r *http.Request) {
 	var req previewLabelRequest
 	if !respond.Decode(w, r, &req) {
@@ -115,6 +126,17 @@ type resolvedLabelResponse struct {
 // concrete elements (values filled) plus the media geometry as JSON. The web
 // client renders these to a canvas for WebUSB tape printing, so field resolution
 // stays authoritative on the server and is never duplicated in the browser.
+// @Summary     Resolve a label
+// @Description Resolve a template's field bindings for one part and return the concrete elements plus media geometry.
+// @Tags        labels
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /labels/resolve  [post]
 func (h *Handler) ResolveLabel(w http.ResponseWriter, r *http.Request) {
 	var req previewLabelRequest
 	if !respond.Decode(w, r, &req) {
@@ -143,6 +165,14 @@ type labelTemplateRequest struct {
 }
 
 // ListLabelTemplates returns the saved builder templates.
+// @Summary     List label templates
+// @Description Return the saved drag-and-drop builder templates.
+// @Tags        labels
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200      {array}   map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /labels/templates  [get]
 func (h *Handler) ListLabelTemplates(w http.ResponseWriter, r *http.Request) {
 	ts, err := h.LabelTemplates.List(r.Context())
 	if err != nil {
@@ -153,6 +183,17 @@ func (h *Handler) ListLabelTemplates(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateLabelTemplate saves a new template.
+// @Summary     Create a label template
+// @Description Save a new drag-and-drop builder template.
+// @Tags        labels
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /labels/templates  [post]
 func (h *Handler) CreateLabelTemplate(w http.ResponseWriter, r *http.Request) {
 	var req labelTemplateRequest
 	if !respond.Decode(w, r, &req) {
@@ -172,6 +213,19 @@ func (h *Handler) CreateLabelTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateLabelTemplate replaces a template's name, size, and elements.
+// @Summary     Update a label template
+// @Description Replace a template's name, size, and elements.
+// @Tags        labels
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true   "identifier"
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /labels/templates/{id}  [patch]
 func (h *Handler) UpdateLabelTemplate(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -195,6 +249,16 @@ func (h *Handler) UpdateLabelTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteLabelTemplate removes a template.
+// @Summary     Delete a label template
+// @Description Remove a saved builder template.
+// @Tags        labels
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id       path      string                  true   "identifier"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /labels/templates/{id}  [delete]
 func (h *Handler) DeleteLabelTemplate(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -213,6 +277,14 @@ func (h *Handler) DeleteLabelTemplate(w http.ResponseWriter, r *http.Request) {
 
 // ListLabelMedia returns the user's curated list of label sheets (the ones they
 // print on), built-ins first.
+// @Summary     List label media
+// @Description Return the user's curated list of label sheets, built-ins first.
+// @Tags        labels
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200      {array}   map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /labels/media  [get]
 func (h *Handler) ListLabelMedia(w http.ResponseWriter, r *http.Request) {
 	m, err := h.LabelMedia.List(r.Context())
 	if err != nil {
@@ -224,6 +296,16 @@ func (h *Handler) ListLabelMedia(w http.ResponseWriter, r *http.Request) {
 
 // SearchLabelCatalog searches the bundled catalogue of known label products
 // (hundreds of Avery sizes) so the user can add the ones they use.
+// @Summary     Search the label catalogue
+// @Description Search the bundled catalogue of known label products (Avery sizes).
+// @Tags        labels
+// @Security    BearerAuth
+// @Produce     json
+// @Param       q        query     string                  false  "search text"
+// @Param       limit    query     integer                 false  "max results"
+// @Success     200      {array}   map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /labels/catalog  [get]
 func (h *Handler) SearchLabelCatalog(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	limit := 60
@@ -235,6 +317,17 @@ func (h *Handler) SearchLabelCatalog(w http.ResponseWriter, r *http.Request) {
 
 // CreateLabelMedia adds a sheet to the user's list, either imported from the
 // catalogue or a custom size. The body carries the full geometry (in points).
+// @Summary     Create label media
+// @Description Add a label sheet to the user's list, imported from the catalogue or a custom size.
+// @Tags        labels
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /labels/media  [post]
 func (h *Handler) CreateLabelMedia(w http.ResponseWriter, r *http.Request) {
 	var m models.LabelMedia
 	if !respond.Decode(w, r, &m) {
@@ -263,6 +356,16 @@ func (h *Handler) CreateLabelMedia(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteLabelMedia removes a sheet from the user's list.
+// @Summary     Delete label media
+// @Description Remove a label sheet from the user's list.
+// @Tags        labels
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id       path      string                  true   "identifier"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /labels/media/{id}  [delete]
 func (h *Handler) DeleteLabelMedia(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -339,6 +442,17 @@ func resolveLabelValue(e labels.Element, deepLink string, p *models.Part) string
 // PrintLabels renders a PDF of labels for the given parts onto the chosen media,
 // skipping any cells already used on the first sheet. Responds with the PDF
 // bytes (Content-Type application/pdf).
+// @Summary     Print labels
+// @Description Render a PDF of labels for the given parts onto the chosen media, skipping used cells.
+// @Tags        labels
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     application/pdf
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /labels/print  [post]
 func (h *Handler) PrintLabels(w http.ResponseWriter, r *http.Request) {
 	var req printLabelsRequest
 	if !respond.Decode(w, r, &req) {

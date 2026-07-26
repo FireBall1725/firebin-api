@@ -1,0 +1,66 @@
+name: API Docs
+
+# Publishes the committed OpenAPI spec as a static Scalar site to GitHub Pages.
+# It does not run swag; the spec is regenerated with `make docs` and committed.
+# Needs Pages enabled for the repo (Settings, Pages, Source: GitHub Actions).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/swagger.json"
+      - "docs/swagger.yaml"
+      - "docs/scalar.html"
+      - ".github/workflows/docs.yml"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One publish at a time; a newer run supersedes an in-progress one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Assemble Scalar static site
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          cp docs/swagger.json site/openapi.json
+          cp docs/swagger.yaml site/openapi.yaml
+          cp docs/scalar.html site/index.html
+
+          # Stamp the served spec's info.version with the latest tag, since the
+          # committed @version rarely matches the release being published.
+          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)"
+          fi
+          if [ -n "${VERSION}" ]; then
+            jq --arg v "${VERSION}" '.info.version = $v' site/openapi.json > site/openapi.json.tmp
+            mv site/openapi.json.tmp site/openapi.json
+          fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -29,6 +29,15 @@ type tokenResponse struct {
 
 // Register creates a new user. The first user to register becomes the instance
 // admin; registration can be disabled for everyone else via config.
+// @Summary     Register a new user
+// @Description Create a new account; the first registrant becomes the instance admin.
+// @Tags        auth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Router      /auth/register  [post]
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req authRequest
 	if !respond.Decode(w, r, &req) {
@@ -83,6 +92,16 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 // Login authenticates a username/password and issues a token pair.
+// @Summary     Log in
+// @Description Authenticate a username and password and issue an access + refresh token pair.
+// @Tags        auth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /auth/login  [post]
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req authRequest
 	if !respond.Decode(w, r, &req) {
@@ -109,6 +128,16 @@ type refreshRequest struct {
 
 // Refresh exchanges a valid refresh token for a new access + refresh pair,
 // rotating the old refresh token.
+// @Summary     Refresh tokens
+// @Description Exchange a valid refresh token for a new access + refresh pair, rotating the old one.
+// @Tags        auth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /auth/refresh  [post]
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
 	if !respond.Decode(w, r, &req) {
@@ -132,6 +161,15 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 // Logout revokes the presented refresh token.
+// @Summary     Log out
+// @Description Revoke the presented refresh token.
+// @Tags        auth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Router      /auth/logout  [post]
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
 	if !respond.Decode(w, r, &req) {

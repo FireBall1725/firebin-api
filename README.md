@@ -52,6 +52,12 @@ go vet ./...            # static checks
 
 CI runs the same three against a Postgres service, plus golangci-lint, on every push and pull request. A tagged release (`vYY.M.rev`, for example `v26.7.0`) builds the Docker image and pushes it to `ghcr.io/fireball1725/firebin-api`.
 
+## API documentation
+
+The API documents itself. Start the server and open `http://localhost:8080/api/docs` for the Scalar reference, or fetch the raw OpenAPI spec at `/api/openapi.json`. Both are public, no token needed.
+
+The spec is generated from swaggo annotations on the handlers. Regenerate it with `make docs` (install the CLI once: `go install github.com/swaggo/swag/cmd/swag@v1.16.4`). The generated `docs/` package is committed, and the `API Docs` workflow publishes it to GitHub Pages on a push that changes the spec.
+
 ## Enrichment
 
 Scanning a distributor barcode matches an existing part locally at no API cost. To pull datasheets, parameters, images, and price breaks by MPN, the API calls Digi-Key first (the free V4 API) and Nexar as a fallback. Both are configured under Settings in the web client, or through the environment variables above.

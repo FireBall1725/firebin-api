@@ -312,6 +312,18 @@ func cleanParameters(p *models.EnrichedPart) {
 // Results from every queried provider are merged into the richest single part
 // (union of parameters/suppliers, first-non-empty for scalar fields) so a scan
 // gets the most complete data possible.
+// @Summary     Enrich by MPN
+// @Description Look up an MPN across the enrichment providers and return normalized part data.
+// @Tags        enrichment
+// @Security    BearerAuth
+// @Produce     json
+// @Param       mpn        query     string                  true   "manufacturer part number"
+// @Param       providers  query     string                  false  "comma-separated provider ids"
+// @Param       refresh    query     string                  false  "skip cache and re-query"
+// @Success     200        {object}  map[string]interface{}
+// @Failure     400        {object}  map[string]interface{}
+// @Failure     401        {object}  map[string]interface{}
+// @Router      /enrich  [get]
 func (h *Handler) Enrich(w http.ResponseWriter, r *http.Request) {
 	mpn := strings.TrimSpace(r.URL.Query().Get("mpn"))
 	if mpn == "" {
@@ -372,6 +384,19 @@ type enrichPartRequest struct {
 // EnrichPart refreshes ONE part from its primary MPN and applies the result
 // server-side — the exact same apply path as the bulk refresh, so a single
 // "Update" and a bulk refresh never diverge.
+// @Summary     Enrich one part
+// @Description Refresh one part from its primary MPN and apply the result server-side.
+// @Tags        enrichment
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true   "identifier"
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /parts/{id}/enrich  [post]
 func (h *Handler) EnrichPart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -592,6 +617,14 @@ func (h *Handler) anyEnricherConfigured(ctx context.Context) bool {
 
 // EnrichmentStatus reports which providers are configured (for the UI to show
 // the right affordance without exposing secrets).
+// @Summary     Enrichment status
+// @Description Report which providers are configured, without exposing secrets.
+// @Tags        enrichment
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /enrich/status  [get]
 func (h *Handler) EnrichmentStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	provs := make([]map[string]any, 0, len(h.Enrichers))

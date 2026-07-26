@@ -32,6 +32,14 @@ func (h *Handler) enricherEnabled(ctx context.Context, name string) bool {
 
 // GetEnrichmentSettings reports each provider's configuration without exposing
 // secrets (only whether they are set, and a masked client-id hint).
+// @Summary     Get enrichment settings
+// @Description Report each enrichment provider's configuration without exposing secrets.
+// @Tags        settings
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /settings/enrichment  [get]
 func (h *Handler) GetEnrichmentSettings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	out := make([]providerSettings, 0, len(h.Enrichers))
@@ -93,6 +101,17 @@ type enrichmentSettingsRequest struct {
 // UpdateEnrichmentSettings stores one provider's credentials. Only non-nil
 // fields are written; an empty client_secret is ignored so the UI can save
 // other fields without re-entering the secret.
+// @Summary     Update enrichment settings
+// @Description Store one provider's credentials and enrichment preferences.
+// @Tags        settings
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /settings/enrichment  [put]
 func (h *Handler) UpdateEnrichmentSettings(w http.ResponseWriter, r *http.Request) {
 	var req enrichmentSettingsRequest
 	if !respond.Decode(w, r, &req) {
@@ -137,6 +156,17 @@ type testEnrichmentRequest struct {
 
 // TestEnrichment validates one provider's credentials by minting a token. This
 // does NOT spend a metered lookup — it only checks auth.
+// @Summary     Test enrichment provider
+// @Description Validate one provider's credentials by minting a token without spending a lookup.
+// @Tags        settings
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /settings/enrichment/test  [post]
 func (h *Handler) TestEnrichment(w http.ResponseWriter, r *http.Request) {
 	var req testEnrichmentRequest
 	// Body is optional; default to the first provider if omitted.
@@ -172,6 +202,14 @@ func (h *Handler) deleteEmptyLotsEnabled(ctx context.Context) bool {
 
 // GetStockSettings returns the empty-lot cleanup toggle and how many lots the
 // cleanup would remove right now.
+// @Summary     Get stock settings
+// @Description Return the empty-lot cleanup toggle and the current count of purgeable lots.
+// @Tags        settings
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /settings/stock  [get]
 func (h *Handler) GetStockSettings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	n, err := h.Stock.CountEmptyLots(ctx)
@@ -190,6 +228,17 @@ type stockSettingsRequest struct {
 }
 
 // UpdateStockSettings stores the empty-lot cleanup toggle.
+// @Summary     Update stock settings
+// @Description Store the empty-lot cleanup toggle.
+// @Tags        settings
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /settings/stock  [put]
 func (h *Handler) UpdateStockSettings(w http.ResponseWriter, r *http.Request) {
 	var req stockSettingsRequest
 	if !respond.Decode(w, r, &req) {
@@ -208,6 +257,14 @@ func (h *Handler) UpdateStockSettings(w http.ResponseWriter, r *http.Request) {
 // CleanupEmptyLots purges zero-quantity, non-barcoded lots, but only when the
 // admin has turned the toggle on. With it off the request is a no-op, so the
 // default install never deletes stock history.
+// @Summary     Cleanup empty lots
+// @Description Purge zero-quantity, non-barcoded lots when the cleanup toggle is on.
+// @Tags        settings
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /stock/cleanup-empty  [post]
 func (h *Handler) CleanupEmptyLots(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !h.deleteEmptyLotsEnabled(ctx) {

@@ -21,6 +21,14 @@ type locationRequest struct {
 	Barcode     *string    `json:"barcode"`
 }
 
+// @Summary     List locations
+// @Description List all storage locations.
+// @Tags        locations
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /locations  [get]
 func (h *Handler) ListLocations(w http.ResponseWriter, r *http.Request) {
 	locs, err := h.Locations.List(r.Context())
 	if err != nil {
@@ -30,6 +38,16 @@ func (h *Handler) ListLocations(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, locs)
 }
 
+// @Summary     Get location
+// @Description Return one storage location by id.
+// @Tags        locations
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true   "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /locations/{id}  [get]
 func (h *Handler) GetLocation(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -49,6 +67,15 @@ func (h *Handler) GetLocation(w http.ResponseWriter, r *http.Request) {
 
 // ScanLocation resolves a bin by its barcode — "scan a bin to list contents".
 // The contents themselves come from the stock listing; this returns the bin.
+// @Summary     Scan location
+// @Description Resolve a storage location from its barcode.
+// @Tags        locations
+// @Security    BearerAuth
+// @Produce     json
+// @Param       barcode  query     string                  true   "barcode"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /locations/scan  [get]
 func (h *Handler) ScanLocation(w http.ResponseWriter, r *http.Request) {
 	code := strings.TrimSpace(r.URL.Query().Get("barcode"))
 	if code == "" {
@@ -67,6 +94,17 @@ func (h *Handler) ScanLocation(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, l)
 }
 
+// @Summary     Create location
+// @Description Create a storage location.
+// @Tags        locations
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     201      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /locations  [post]
 func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request) {
 	var req locationRequest
 	if !respond.Decode(w, r, &req) {
@@ -85,6 +123,19 @@ func (h *Handler) CreateLocation(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, l)
 }
 
+// @Summary     Update location
+// @Description Update a storage location.
+// @Tags        locations
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       id       path      string                  true   "identifier"
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Failure     404      {object}  map[string]interface{}
+// @Router      /locations/{id}  [patch]
 func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
@@ -108,6 +159,16 @@ func (h *Handler) UpdateLocation(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, l)
 }
 
+// @Summary     Delete location
+// @Description Delete a storage location.
+// @Tags        locations
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string                  true   "identifier"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /locations/{id}  [delete]
 func (h *Handler) DeleteLocation(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {

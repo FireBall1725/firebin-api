@@ -10,6 +10,14 @@ import (
 )
 
 // GetStats returns the dashboard summary.
+// @Summary     Get dashboard stats
+// @Description Return the dashboard summary counts and totals.
+// @Tags        dashboard
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /stats [get]
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	s, err := h.Stats.Get(r.Context())
 	if err != nil {
@@ -20,6 +28,14 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // LowStock returns parts at or below their minimum.
+// @Summary     List low-stock parts
+// @Description Return parts at or below their minimum stock level.
+// @Tags        dashboard
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /parts/low-stock [get]
 func (h *Handler) LowStock(w http.ResponseWriter, r *http.Request) {
 	parts, err := h.Parts.ListLowStock(r.Context())
 	if err != nil {
@@ -30,6 +46,14 @@ func (h *Handler) LowStock(w http.ResponseWriter, r *http.Request) {
 }
 
 // RecentActivity returns the newest stock movements across all parts.
+// @Summary     List recent stock activity
+// @Description Return the newest stock movements across all parts.
+// @Tags        dashboard
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /stock/recent [get]
 func (h *Handler) RecentActivity(w http.ResponseWriter, r *http.Request) {
 	txns, err := h.Stock.Recent(r.Context(), 20)
 	if err != nil {
@@ -40,6 +64,16 @@ func (h *Handler) RecentActivity(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListLocationStock returns the contents of a bin (scan-a-bin).
+// @Summary     List location stock
+// @Description Return the stock contents of a bin (scan-a-bin).
+// @Tags        dashboard
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  true   "identifier"
+// @Success     200  {array}   map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /locations/{id}/stock [get]
 func (h *Handler) ListLocationStock(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
