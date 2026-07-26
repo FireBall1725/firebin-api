@@ -305,6 +305,27 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/setup": {
+            "get": {
+                "description": "Report whether the instance needs its first (admin) account created.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Setup status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/boards/{id}": {
             "get": {
                 "security": [

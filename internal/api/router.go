@@ -24,6 +24,7 @@ func NewRouter(h *handlers.Handler) http.Handler {
 	// API docs (no auth): the raw OpenAPI spec and the Scalar reference UI.
 	mux.HandleFunc("GET /api/openapi.json", h.ServeOpenAPISpec)
 	mux.HandleFunc("GET /api/docs", h.ServeScalarUI)
+	mux.HandleFunc("GET /api/v1/auth/setup", h.SetupStatus)
 	mux.HandleFunc("POST /api/v1/auth/register", h.Register)
 	mux.HandleFunc("POST /api/v1/auth/login", h.Login)
 	mux.HandleFunc("POST /api/v1/auth/refresh", h.Refresh)
