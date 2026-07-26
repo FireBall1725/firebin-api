@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -29,6 +30,7 @@ type partRequest struct {
 	Package           *string              `json:"package"`
 	Keywords          *string              `json:"keywords"`
 	Barcode           *string              `json:"barcode"`
+	ImagePath         *string              `json:"image_path"`
 	IsTemplate        bool                 `json:"is_template"`
 	IsAssembly        bool                 `json:"is_assembly"`
 	MinimumStock      float64              `json:"minimum_stock"`
@@ -152,6 +154,65 @@ func (h *Handler) DeletePart(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+// UploadPartImage stores a custom image for a part (replacing any existing) and
+// points parts.image_path at the serving endpoint. Bundled symbols don't come
+// through here — they're just a "/symbols/<name>.svg" path set via UpdatePart.
+func (h *Handler) UploadPartImage(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseMultipartForm(16 << 20); err != nil {
+		respond.Error(w, http.StatusBadRequest, "expected a multipart file upload")
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "missing 'file' field")
+		return
+	}
+	defer file.Close()
+	mime := imageMime(header.Filename)
+	if mime == "" {
+		respond.Error(w, http.StatusUnprocessableEntity, "the image must be a .png/.jpg/.svg/.webp/.gif")
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(file, 16<<20))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "could not read upload")
+		return
+	}
+	if err := h.Parts.SetPartImage(r.Context(), id, mime, data); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not save the image")
+		return
+	}
+	h.Bus.Publish("parts")
+	full, _ := h.Parts.Get(r.Context(), id)
+	respond.JSON(w, http.StatusOK, full)
+}
+
+// GetPartImage serves a part's uploaded custom image. Public (no auth) so it can
+// be used directly as an <img src>, like the static /symbols/*.svg files.
+func (h *Handler) GetPartImage(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	mime, content, found, err := h.Parts.GetPartImage(r.Context(), id)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not load image")
+		return
+	}
+	if !found {
+		respond.Error(w, http.StatusNotFound, "no image")
+		return
+	}
+	w.Header().Set("Content-Type", mime)
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
+}
+
 // normNilString trims a pointer string and returns nil when it's empty, so an
 // omitted/blank IPN stores as NULL (the unique index ignores NULLs).
 func normNilString(s *string) *string {
@@ -175,6 +236,7 @@ func partFromRequest(req *partRequest) *models.Part {
 		Package:           req.Package,
 		Keywords:          req.Keywords,
 		Barcode:           req.Barcode,
+		ImagePath:         normNilString(req.ImagePath),
 		IsTemplate:        req.IsTemplate,
 		IsComponent:       true,
 		IsAssembly:        req.IsAssembly,

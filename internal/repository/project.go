@@ -336,7 +336,7 @@ func (r *ProjectRepo) ReplaceBOMLines(ctx context.Context, boardID uuid.UUID, li
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if _, err := tx.Exec(ctx, `DELETE FROM board_bom_lines WHERE board_id = $1`, boardID); err != nil {
 		return err

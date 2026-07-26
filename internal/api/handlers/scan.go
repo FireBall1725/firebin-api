@@ -9,6 +9,7 @@ import (
 
 	"github.com/firelabsca/firebin-api/internal/api/respond"
 	"github.com/firelabsca/firebin-api/internal/barcode/eigp114"
+	"github.com/firelabsca/firebin-api/internal/barcode/lcsc"
 	"github.com/google/uuid"
 )
 
@@ -43,16 +44,25 @@ func (h *Handler) Scan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsed := eigp114.Parse(code)
+	// Pick the parser by label shape: LCSC's {key:value} QR, ECIA EIGP 114, or a
+	// bare MPN typed/scanned on its own.
+	isLCSC := lcsc.IsLCSC(code)
+	isEIGP := eigp114.IsEIGP(code)
+	var parsed *eigp114.Parsed
+	if isLCSC {
+		parsed = lcsc.Parse(code)
+	} else {
+		parsed = eigp114.Parse(code)
+	}
 	resp := scanResponse{
 		Parsed:  parsed,
-		IsEIGP:  eigp114.IsEIGP(code),
+		IsEIGP:  isEIGP,
 		RawCode: code,
 	}
 
-	// A bare (non-EIGP) scan is treated as an MPN itself.
+	// A bare scan (no envelope) is treated as an MPN itself.
 	mpn := parsed.MPN
-	if mpn == "" && !resp.IsEIGP {
+	if mpn == "" && !isEIGP && !isLCSC {
 		mpn = code
 		resp.Parsed.MPN = code
 	}

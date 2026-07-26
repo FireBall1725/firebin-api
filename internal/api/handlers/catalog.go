@@ -61,6 +61,32 @@ func (h *Handler) CreateManufacturerPart(w http.ResponseWriter, r *http.Request)
 	respond.JSON(w, http.StatusCreated, mp)
 }
 
+func (h *Handler) UpdateManufacturerPart(w http.ResponseWriter, r *http.Request) {
+	id, ok := pathUUID(w, r)
+	if !ok {
+		return
+	}
+	var req manufacturerPartRequest
+	if !respond.Decode(w, r, &req) {
+		return
+	}
+	if strings.TrimSpace(req.MPN) == "" {
+		respond.Error(w, http.StatusBadRequest, "mpn is required")
+		return
+	}
+	err := h.Catalog.UpdateManufacturerPart(r.Context(), id, strings.TrimSpace(req.Manufacturer), strings.TrimSpace(req.MPN), req.DatasheetURL)
+	if errors.Is(err, repository.ErrNotFound) {
+		respond.Error(w, http.StatusNotFound, "not found")
+		return
+	}
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not update manufacturer part")
+		return
+	}
+	h.Bus.Publish("parts")
+	respond.JSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
 func (h *Handler) DeleteManufacturerPart(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {

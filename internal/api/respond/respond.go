@@ -7,6 +7,8 @@ package respond
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 )
@@ -52,6 +54,22 @@ func Decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {
+		Error(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return false
+	}
+	return true
+}
+
+// DecodeAllowEmpty is like Decode but treats an empty body as success, leaving
+// dst zero-valued. Use for endpoints where the body is optional.
+func DecodeAllowEmpty(w http.ResponseWriter, r *http.Request, dst any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		if errors.Is(err, io.EOF) {
+			return true // empty body — leave dst zero-valued
+		}
 		Error(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return false
 	}

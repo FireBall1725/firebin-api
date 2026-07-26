@@ -20,21 +20,31 @@ const (
 	eot = '\x04' // end of transmission
 )
 
+// escSeparators normalises the VT function-key escape sequences some keyboard-
+// wedge scanners substitute for the raw separators (GS = F8/F7, RS = F9) back
+// to the real control characters. The web client already does this, but a
+// wedge string could reach the API by another path, so we repeat it defensively.
+var escSeparators = strings.NewReplacer(
+	"\x1b[19~", string(gs), // F8
+	"\x1b[18~", string(gs), // F7
+	"\x1b[20~", string(rs), // F9
+)
+
 // Parsed holds the decoded fields of a distributor label.
 type Parsed struct {
-	MPN             string            `json:"mpn"`              // 1P — manufacturer part number
-	Quantity        int               `json:"quantity"`         // Q
-	CustomerPart    string            `json:"customer_part"`    // P — distributor's own SKU (e.g. Digi-Key -ND)
-	DistributorPart string            `json:"distributor_part"` // 30P — alternate distributor SKU
-	SalesOrder      string            `json:"sales_order"`      // 1K
-	Invoice         string            `json:"invoice"`          // 10K
-	PackingList     string            `json:"packing_list"`     // 11K
-	CustomerPO      string            `json:"customer_po"`      // K
-	DateCode        string            `json:"date_code"`        // 9D (YYWW)
-	LotCode         string            `json:"lot_code"`         // 1T
-	CountryOfOrigin string            `json:"country_of_origin"`// 4L
-	Distributor     string            `json:"distributor"`      // best-effort guess
-	Fields          map[string]string `json:"fields"`           // every DI → value, for anything unmapped
+	MPN             string            `json:"mpn"`               // 1P — manufacturer part number
+	Quantity        int               `json:"quantity"`          // Q
+	CustomerPart    string            `json:"customer_part"`     // P — distributor's own SKU (e.g. Digi-Key -ND)
+	DistributorPart string            `json:"distributor_part"`  // 30P — alternate distributor SKU
+	SalesOrder      string            `json:"sales_order"`       // 1K
+	Invoice         string            `json:"invoice"`           // 10K
+	PackingList     string            `json:"packing_list"`      // 11K
+	CustomerPO      string            `json:"customer_po"`       // K
+	DateCode        string            `json:"date_code"`         // 9D (YYWW)
+	LotCode         string            `json:"lot_code"`          // 1T
+	CountryOfOrigin string            `json:"country_of_origin"` // 4L
+	Distributor     string            `json:"distributor"`       // best-effort guess
+	Fields          map[string]string `json:"fields"`            // every DI → value, for anything unmapped
 }
 
 // dataIdentifiers lists the DIs we recognise, longest-first so the greedy
@@ -48,7 +58,8 @@ var dataIdentifiers = []string{
 // IsEIGP reports whether a decoded string looks like an EIGP 114 / ISO 15434
 // envelope (starts with the "[)>" message header or contains group separators).
 func IsEIGP(code string) bool {
-	return strings.HasPrefix(code, "[)>") || strings.ContainsRune(code, gs)
+	return strings.HasPrefix(code, "[)>") || strings.ContainsRune(code, gs) ||
+		strings.Contains(code, "\x1b[19~") || strings.Contains(code, "\x1b[18~")
 }
 
 // Parse decodes an EIGP 114 string. It is lenient: it tolerates a missing
@@ -57,7 +68,7 @@ func IsEIGP(code string) bool {
 func Parse(code string) *Parsed {
 	p := &Parsed{Fields: map[string]string{}}
 
-	body := code
+	body := escSeparators.Replace(code)
 	// Strip the message header: "[)>" RS "06" GS  (any of these may be absent).
 	body = strings.TrimPrefix(body, "[)>")
 	body = strings.TrimLeft(body, string(rs))

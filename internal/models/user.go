@@ -10,15 +10,16 @@ import (
 )
 
 type User struct {
-	ID              uuid.UUID  `json:"id"`
-	Username        string     `json:"username"`
-	Email           *string    `json:"email,omitempty"`
-	PasswordHash    string     `json:"-"`
-	DisplayName     *string    `json:"display_name,omitempty"`
-	IsInstanceAdmin bool       `json:"is_instance_admin"`
-	IsActive        bool       `json:"is_active"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID              uuid.UUID `json:"id"`
+	Username        string    `json:"username"`
+	Email           *string   `json:"email,omitempty"`
+	PasswordHash    string    `json:"-"`
+	DisplayName     *string   `json:"display_name,omitempty"`
+	Role            string    `json:"role"` // admin | member | viewer
+	IsInstanceAdmin bool      `json:"is_instance_admin"`
+	IsActive        bool      `json:"is_active"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // APIToken is a personal access token record. The raw value is never stored.

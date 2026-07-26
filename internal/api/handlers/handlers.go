@@ -10,9 +10,13 @@ import (
 	"github.com/firelabsca/firebin-api/internal/auth"
 	"github.com/firelabsca/firebin-api/internal/config"
 	"github.com/firelabsca/firebin-api/internal/events"
+	"github.com/firelabsca/firebin-api/internal/jobs"
+	"github.com/firelabsca/firebin-api/internal/providers"
+	"github.com/firelabsca/firebin-api/internal/providers/digikey"
 	"github.com/firelabsca/firebin-api/internal/providers/nexar"
 	"github.com/firelabsca/firebin-api/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 )
 
 // Handler bundles the dependencies shared by every endpoint.
@@ -22,26 +26,37 @@ type Handler struct {
 	Users  *repository.UserRepo
 	Tokens *repository.TokenRepo
 
-	Categories *repository.CategoryRepo
-	Parts      *repository.PartRepo
-	Projects   *repository.ProjectRepo
-	Locations  *repository.LocationRepo
-	Stock      *repository.StockRepo
-	Stats      *repository.StatsRepo
-	Catalog     *repository.CatalogRepo
-	Settings    *repository.SettingsRepo
-	EnrichCache *repository.EnrichmentCacheRepo
-	Bus         *events.Broker
-	Enricher    *nexar.Provider
+	Categories     *repository.CategoryRepo
+	Parts          *repository.PartRepo
+	Projects       *repository.ProjectRepo
+	Locations      *repository.LocationRepo
+	Stock          *repository.StockRepo
+	Stats          *repository.StatsRepo
+	Catalog        *repository.CatalogRepo
+	Settings       *repository.SettingsRepo
+	EnrichCache    *repository.EnrichmentCacheRepo
+	LabelMedia     *repository.LabelMediaRepo
+	LabelTemplates *repository.LabelTemplateRepo
+	Backup         *repository.BackupRepo
+	Bus            *events.Broker
+
+	// Enrichers are the MPN-lookup providers, tried in order (Digi-Key first,
+	// then Nexar). EnricherBy indexes them by provider id for settings/test.
+	Enrichers  []providers.Enricher
+	EnricherBy map[string]providers.Enricher
+
+	// Jobs is the background job service (River). Started and stopped by main.
+	Jobs *jobs.Service
 }
 
-// New builds the handler and all its repositories from the connection pool.
-func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) *Handler {
+// New builds the handler and all its repositories from the connection pool, and
+// wires the background job service (workers registered, not yet started).
+func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler, error) {
 	settings := repository.NewSettingsRepo(pool)
 
 	// Enrichment credentials resolve fresh per call: DB settings first (entered
 	// in the UI), then env fallback — so the user can add keys without a restart.
-	creds := func(ctx context.Context) nexar.Credentials {
+	nexarCreds := func(ctx context.Context) nexar.Credentials {
 		id, _ := settings.Get(ctx, "nexar.client_id")
 		secret, _ := settings.Get(ctx, "nexar.client_secret")
 		scope, _ := settings.Get(ctx, "nexar.scope")
@@ -57,21 +72,71 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) *Handler 
 		return nexar.Credentials{ClientID: id, ClientSecret: secret, Scope: scope}
 	}
 
-	return &Handler{
-		Cfg:        cfg,
-		JWT:        jwt,
-		Users:      repository.NewUserRepo(pool),
-		Tokens:     repository.NewTokenRepo(pool),
-		Categories: repository.NewCategoryRepo(pool),
-		Parts:      repository.NewPartRepo(pool),
-		Projects:   repository.NewProjectRepo(pool),
-		Locations:  repository.NewLocationRepo(pool),
-		Stock:      repository.NewStockRepo(pool),
-		Stats:      repository.NewStatsRepo(pool),
-		Catalog:     repository.NewCatalogRepo(pool),
-		Settings:    settings,
-		EnrichCache: repository.NewEnrichmentCacheRepo(pool),
-		Bus:         events.NewBroker(),
-		Enricher:    nexar.New(creds),
+	digikeyCreds := func(ctx context.Context) digikey.Credentials {
+		id, _ := settings.Get(ctx, "digikey.client_id")
+		secret, _ := settings.Get(ctx, "digikey.client_secret")
+		if id == "" {
+			id = cfg.DigiKeyClientID
+		}
+		if secret == "" {
+			secret = cfg.DigiKeyClientSecret
+		}
+		currency, _ := settings.Get(ctx, "enrichment.currency")
+		if currency == "" {
+			currency = cfg.DigiKeyCurrency
+		}
+		return digikey.Credentials{
+			ClientID:     id,
+			ClientSecret: secret,
+			BaseURL:      cfg.DigiKeyBaseURL,
+			Site:         cfg.DigiKeySite,
+			Language:     cfg.DigiKeyLanguage,
+			Currency:     currency,
+		}
 	}
+
+	// Order matters: Digi-Key first (free, own catalogue), Nexar as fallback.
+	enrichers := []providers.Enricher{
+		digikey.New(digikeyCreds),
+		nexar.New(nexarCreds),
+	}
+	enricherBy := make(map[string]providers.Enricher, len(enrichers))
+	for _, e := range enrichers {
+		enricherBy[e.Name()] = e
+	}
+
+	h := &Handler{
+		Cfg:            cfg,
+		JWT:            jwt,
+		Users:          repository.NewUserRepo(pool),
+		Tokens:         repository.NewTokenRepo(pool),
+		Categories:     repository.NewCategoryRepo(pool),
+		Parts:          repository.NewPartRepo(pool),
+		Projects:       repository.NewProjectRepo(pool),
+		Locations:      repository.NewLocationRepo(pool),
+		Stock:          repository.NewStockRepo(pool),
+		Stats:          repository.NewStatsRepo(pool),
+		Catalog:        repository.NewCatalogRepo(pool),
+		Settings:       settings,
+		EnrichCache:    repository.NewEnrichmentCacheRepo(pool),
+		LabelMedia:     repository.NewLabelMediaRepo(pool),
+		LabelTemplates: repository.NewLabelTemplateRepo(pool),
+		Backup:         repository.NewBackupRepo(pool),
+		Bus:            events.NewBroker(),
+		Enrichers:      enrichers,
+		EnricherBy:     enricherBy,
+	}
+
+	// Wire the job service: register workers (which reference h), then build the
+	// River client. Not started here; main owns the lifecycle.
+	store := jobs.NewStore(pool)
+	deps := jobs.NewDeps(store, h.Bus)
+	workers := river.NewWorkers()
+	river.AddWorker(workers, &bulkEnrichWorker{h: h, deps: deps})
+	svc, err := jobs.New(pool, store, deps, workers)
+	if err != nil {
+		return nil, err
+	}
+	h.Jobs = svc
+	return h, nil
 }

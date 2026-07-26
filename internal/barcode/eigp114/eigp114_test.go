@@ -6,8 +6,8 @@ package eigp114
 import "testing"
 
 const (
-	tRS = "\x1e"
-	tGS = "\x1d"
+	tRS  = "\x1e"
+	tGS  = "\x1d"
 	tEOT = "\x04"
 )
 
@@ -90,6 +90,41 @@ func TestParseRealDigiKeyLabel(t *testing.T) {
 	}
 	if p.Distributor != "digikey" {
 		t.Errorf("Distributor = %q, want digikey", p.Distributor)
+	}
+}
+
+// TestParseFunctionKeySeparators uses the exact byte stream from a keyboard-
+// wedge scanner configured to emit the separators as VT function keys: GS = F8
+// (ESC[19~), RS = F9 (ESC[20~). Same Digi-Key bag as TestParseRealDigiKeyLabel.
+func TestParseFunctionKeySeparators(t *testing.T) {
+	const f8 = "\x1b[19~" // GS
+	const f9 = "\x1b[20~" // RS
+	code := "[)>" + f9 + "06" + f8 +
+		"P1276-3059-1-ND" + f8 +
+		"1PCL31A475KOHNNNE" + f8 +
+		"K" + f8 +
+		"1K80301470" + f8 +
+		"10K95945419" + f8 +
+		"11K1" + f8 +
+		"4LCN" + f8 +
+		"Q100" + f8 +
+		"11ZPICK" + f8 +
+		"12Z3891145" + f8 +
+		"13Z210599" + f8 +
+		"20Z" + "000000000000000000"
+
+	if !IsEIGP(code) {
+		t.Fatal("function-key form should be recognised as EIGP")
+	}
+	p := Parse(code)
+	if p.MPN != "CL31A475KOHNNNE" {
+		t.Errorf("MPN = %q, want CL31A475KOHNNNE", p.MPN)
+	}
+	if p.Quantity != 100 {
+		t.Errorf("Quantity = %d, want 100", p.Quantity)
+	}
+	if p.CustomerPart != "1276-3059-1-ND" {
+		t.Errorf("CustomerPart = %q, want 1276-3059-1-ND", p.CustomerPart)
 	}
 }
 

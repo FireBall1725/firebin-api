@@ -1,0 +1,2 @@
+ALTER TABLE label_media DROP COLUMN IF EXISTS cut_guides;
+ALTER TABLE label_media DROP COLUMN IF EXISTS kind;

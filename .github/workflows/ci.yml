@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: firebin
+          POSTGRES_PASSWORD: firebin
+          POSTGRES_DB: firebin
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U firebin"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go build ./...
+      - run: go vet ./...
+      - name: Test
+        env:
+          DATABASE_URL: postgres://firebin:firebin@localhost:5432/firebin?sslmode=disable
+          JWT_SECRET: ci-test-secret
+        run: go test ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest

@@ -9,16 +9,12 @@ import (
 
 	"github.com/firelabsca/firebin-api/internal/api/handlers"
 	"github.com/firelabsca/firebin-api/internal/api/middleware"
-	"github.com/firelabsca/firebin-api/internal/auth"
-	"github.com/firelabsca/firebin-api/internal/config"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// NewRouter builds the top-level HTTP handler with all routes and middleware.
-func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
-	jwtSvc := auth.NewJWTService(cfg.JWTSecret, cfg.JWTAccessTTL)
-	h := handlers.New(cfg, pool, jwtSvc)
-	authn := middleware.NewAuthenticator(jwtSvc, h.Tokens, h.Users)
+// NewRouter builds the top-level HTTP handler with all routes and middleware,
+// over a handler the caller already constructed (so main owns the job lifecycle).
+func NewRouter(h *handlers.Handler) http.Handler {
+	authn := middleware.NewAuthenticator(h.JWT, h.Tokens, h.Users)
 
 	mux := http.NewServeMux()
 
@@ -30,11 +26,24 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/logout", h.Logout)
 
 	// ── Authenticated ───────────────────────────────────────────────────────
+	// protected = signed in, and viewers are refused on state-changing methods
+	// (read-only accounts). admin = instance admin only.
 	protected := func(pattern string, fn http.HandlerFunc) {
-		mux.Handle(pattern, authn.Require(fn))
+		mux.Handle(pattern, authn.RequireWriter(fn))
+	}
+	admin := func(pattern string, fn http.HandlerFunc) {
+		mux.Handle(pattern, authn.RequireAdmin(fn))
 	}
 
 	protected("GET /api/v1/me", h.Me)
+	protected("PATCH /api/v1/users/me/password", h.ChangeMyPassword)
+
+	// User management (admin only)
+	admin("GET /api/v1/users", h.ListUsers)
+	admin("POST /api/v1/users", h.CreateUser)
+	admin("PATCH /api/v1/users/{id}", h.UpdateUser)
+	admin("POST /api/v1/users/{id}/reset-password", h.ResetUserPassword)
+	admin("DELETE /api/v1/users/{id}", h.DeleteUser)
 
 	// Real-time change stream (SSE)
 	protected("GET /api/v1/events", h.Events)
@@ -57,9 +66,14 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	protected("GET /api/v1/parameter-templates", h.ListParameterTemplates)
 	protected("GET /api/v1/parts", h.ListParts)
 	protected("POST /api/v1/parts", h.CreatePart)
+	protected("POST /api/v1/parts/bulk/move", h.BulkMoveParts)
+	protected("POST /api/v1/parts/bulk/enrich", h.BulkEnrichParts)
 	protected("GET /api/v1/parts/{id}", h.GetPart)
 	protected("PATCH /api/v1/parts/{id}", h.UpdatePart)
 	protected("DELETE /api/v1/parts/{id}", h.DeletePart)
+	protected("POST /api/v1/parts/{id}/image", h.UploadPartImage)
+	// Public so it works as a plain <img src>, like the static /symbols/*.svg.
+	mux.HandleFunc("GET /api/v1/parts/{id}/image", h.GetPartImage)
 
 	// Projects → boards → per-board BOM
 	protected("GET /api/v1/projects", h.ListProjects)
@@ -85,25 +99,54 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	protected("GET /api/v1/assets/{id}", h.GetAsset)
 	protected("DELETE /api/v1/assets/{id}", h.DeleteAsset)
 
+	// Background jobs (tasks): enqueue via action endpoints, observe here
+	protected("GET /api/v1/tasks", h.ListTasks)
+	protected("GET /api/v1/tasks/{id}", h.GetTask)
+	protected("GET /api/v1/tasks/{id}/logs", h.GetTaskLogs)
+	protected("POST /api/v1/tasks/{id}/cancel", h.CancelTask)
+	protected("POST /api/v1/tasks/{id}/retry", h.RetryTask)
+	admin("DELETE /api/v1/tasks", h.ClearTasks)
+
+	// Full-instance JSON export / import (admin) — application-level backup.
+	admin("GET /api/v1/export", h.ExportData)
+	admin("POST /api/v1/import", h.ImportData)
+
 	// Scan a distributor barcode (EIGP 114) → parsed fields + part match
 	protected("POST /api/v1/scan", h.Scan)
 
+	// Labels (barcode/QR label-sheet generation → PDF)
+	protected("GET /api/v1/labels/catalog", h.SearchLabelCatalog)
+	protected("GET /api/v1/labels/media", h.ListLabelMedia)
+	protected("POST /api/v1/labels/media", h.CreateLabelMedia)
+	protected("DELETE /api/v1/labels/media/{id}", h.DeleteLabelMedia)
+	protected("POST /api/v1/labels/print", h.PrintLabels)
+	protected("POST /api/v1/labels/preview", h.PreviewLabel)
+	protected("POST /api/v1/labels/resolve", h.ResolveLabel)
+	protected("GET /api/v1/labels/templates", h.ListLabelTemplates)
+	protected("POST /api/v1/labels/templates", h.CreateLabelTemplate)
+	protected("PATCH /api/v1/labels/templates/{id}", h.UpdateLabelTemplate)
+	protected("DELETE /api/v1/labels/templates/{id}", h.DeleteLabelTemplate)
+
 	// Enrichment (Nexar / Octopart MPN lookup)
 	protected("GET /api/v1/enrich", h.Enrich)
+	protected("POST /api/v1/parts/{id}/enrich", h.EnrichPart)
 	protected("GET /api/v1/enrich/status", h.EnrichmentStatus)
 
 	// Enrichment settings (admin)
-	admin := func(pattern string, fn http.HandlerFunc) {
-		mux.Handle(pattern, authn.RequireAdmin(fn))
-	}
 	admin("GET /api/v1/settings/enrichment", h.GetEnrichmentSettings)
 	admin("PUT /api/v1/settings/enrichment", h.UpdateEnrichmentSettings)
 	admin("POST /api/v1/settings/enrichment/test", h.TestEnrichment)
+
+	// Stock settings (admin) — opt-in empty-lot cleanup (default off).
+	admin("GET /api/v1/settings/stock", h.GetStockSettings)
+	admin("PUT /api/v1/settings/stock", h.UpdateStockSettings)
+	admin("POST /api/v1/stock/cleanup-empty", h.CleanupEmptyLots)
 
 	// Manufacturer & supplier parts (commercial tree)
 	protected("GET /api/v1/manufacturers", h.ListManufacturers)
 	protected("GET /api/v1/suppliers", h.ListSuppliers)
 	protected("POST /api/v1/parts/{id}/manufacturer-parts", h.CreateManufacturerPart)
+	protected("PATCH /api/v1/manufacturer-parts/{id}", h.UpdateManufacturerPart)
 	protected("DELETE /api/v1/manufacturer-parts/{id}", h.DeleteManufacturerPart)
 	protected("POST /api/v1/manufacturer-parts/{id}/supplier-parts", h.CreateSupplierPart)
 	protected("DELETE /api/v1/supplier-parts/{id}", h.DeleteSupplierPart)
@@ -114,9 +157,21 @@ func NewRouter(pool *pgxpool.Pool, cfg *config.Config) http.Handler {
 	protected("POST /api/v1/parts/{id}/stock/adjust", h.AdjustPartStock)
 	protected("POST /api/v1/stock/move", h.MoveStock)
 
+	// Stock lots (barcoded units cut off a reel — e.g. a mini spool)
+	protected("GET /api/v1/stock/scan", h.ScanStockLot)
+	protected("GET /api/v1/stock-items/{id}", h.GetStockLot)
+	protected("POST /api/v1/stock/split", h.SplitStock)
+	protected("POST /api/v1/stock/merge", h.MergeStock)
+	protected("POST /api/v1/stock/relocate", h.RelocateStock)
+	protected("POST /api/v1/stock/lot-adjust", h.AdjustStockLot)
+	protected("POST /api/v1/stock/labels/print", h.PrintStockLabels)
+	protected("POST /api/v1/stock/labels/resolve", h.ResolveStockLabel)
+
 	// Locations
 	protected("GET /api/v1/locations", h.ListLocations)
 	protected("GET /api/v1/locations/scan", h.ScanLocation)
+	protected("POST /api/v1/locations/labels/print", h.PrintLocationLabels)
+	protected("POST /api/v1/locations/labels/resolve", h.ResolveLocationLabel)
 	protected("POST /api/v1/locations", h.CreateLocation)
 	protected("GET /api/v1/locations/{id}", h.GetLocation)
 	protected("GET /api/v1/locations/{id}/stock", h.ListLocationStock)

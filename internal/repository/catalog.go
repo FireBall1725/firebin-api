@@ -77,7 +77,7 @@ var supplierKeyAliases = []struct{ sub, key, name string }{
 	{"farnell", "farnell", "Farnell"},
 	{"avnet", "avnet", "Avnet"},
 	{"tme", "tme", "TME"},
-	{"verical", "verical", "Verical"},
+	{"verical", "verical", "Verical"}, //nolint:misspell // Verical is an Arrow distributor brand
 }
 
 // normalizeSupplier returns a stable key + display name for a seller name.
@@ -180,6 +180,29 @@ func (r *CatalogRepo) CreateManufacturerPart(ctx context.Context, partID uuid.UU
 	return &mp, nil
 }
 
+// UpdateManufacturerPart edits an MPN's brand, part number, and datasheet URL.
+func (r *CatalogRepo) UpdateManufacturerPart(ctx context.Context, id uuid.UUID, manufacturerName, mpn string, datasheet *string) error {
+	var mfgID *uuid.UUID
+	if manufacturerName != "" {
+		mid, err := r.getOrCreateManufacturer(ctx, manufacturerName)
+		if err != nil {
+			return err
+		}
+		mfgID = &mid
+	}
+	ct, err := r.pool.Exec(ctx, `
+		UPDATE manufacturer_parts SET manufacturer_id = $2, mpn = $3, datasheet_url = $4
+		WHERE id = $1`,
+		id, mfgID, mpn, datasheet)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *CatalogRepo) DeleteManufacturerPart(ctx context.Context, id uuid.UUID) error {
 	ct, err := r.pool.Exec(ctx, `DELETE FROM manufacturer_parts WHERE id = $1`, id)
 	if err != nil {
@@ -252,7 +275,7 @@ func (r *CatalogRepo) CreateSupplierPart(ctx context.Context, mfgPartID, supplie
 	if err != nil {
 		return uuid.Nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	var id uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -265,6 +288,13 @@ func (r *CatalogRepo) CreateSupplierPart(ctx context.Context, mfgPartID, supplie
 		RETURNING id`,
 		mfgPartID, supplierID, sku, packaging, moq, url).Scan(&id); err != nil {
 		return uuid.Nil, err
+	}
+	// Replace the price breaks wholesale so a re-enrich (e.g. after a currency
+	// change) doesn't leave stale rows in the old currency beside the new ones.
+	if len(breaks) > 0 {
+		if _, err := tx.Exec(ctx, `DELETE FROM supplier_part_pricing WHERE supplier_part_id = $1`, id); err != nil {
+			return uuid.Nil, err
+		}
 	}
 	for _, b := range breaks {
 		if _, err := tx.Exec(ctx, `

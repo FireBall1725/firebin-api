@@ -16,6 +16,7 @@ type Category struct {
 	Description *string    `json:"description,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
+	PartCount   int        `json:"part_count"` // parts directly in this category (List only)
 }
 
 type PartParameter struct {
@@ -95,6 +96,8 @@ type StockItem struct {
 	ID             uuid.UUID  `json:"id"`
 	PartID         uuid.UUID  `json:"part_id"`
 	PartName       string     `json:"part_name,omitempty"`
+	CategoryName   *string    `json:"category_name,omitempty"`
+	ImagePath      *string    `json:"image_path,omitempty"`
 	LocationID     *uuid.UUID `json:"location_id,omitempty"`
 	LocationName   *string    `json:"location_name,omitempty"`
 	SupplierPartID *uuid.UUID `json:"supplier_part_id,omitempty"`
@@ -104,6 +107,9 @@ type StockItem struct {
 	PurchasePrice  *float64   `json:"purchase_price,omitempty"`
 	Status         string     `json:"status"`
 	Note           *string    `json:"note,omitempty"`
+	Barcode        *string    `json:"barcode,omitempty"`    // scannable lot identity (a mini spool)
+	Name           *string    `json:"name,omitempty"`       // human label for the lot ("Mini spool #1")
+	SplitFrom      *uuid.UUID `json:"split_from,omitempty"` // the lot this was cut from
 	AddedAt        time.Time  `json:"added_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
@@ -118,6 +124,8 @@ type StockTransaction struct {
 	ResultingQuantity float64    `json:"resulting_quantity"`
 	FromLocationID    *uuid.UUID `json:"from_location_id,omitempty"`
 	ToLocationID      *uuid.UUID `json:"to_location_id,omitempty"`
+	FromLocationName  *string    `json:"from_location_name,omitempty"`
+	ToLocationName    *string    `json:"to_location_name,omitempty"`
 	Note              *string    `json:"note,omitempty"`
 	UserID            *uuid.UUID `json:"user_id,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`

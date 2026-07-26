@@ -1,56 +1,65 @@
 # firebin-api
 
-Backend for **FireBin**, a self-hosted electronics component inventory. Go + Postgres, REST under `/api/v1`, JWT and `fbin_pat_` personal access tokens.
+The FireBin backend and source of truth. It is a Go 1.26 service backed by Postgres 16, speaking REST over `/api/v1` on port 8080. The web client and every future client talk only to this API; it owns the schema, the auth, and the background jobs.
 
-Part of the FireLabs line. Sibling to Librarium; same architecture and tooling.
+FireBin is a self-hosted electronics parts inventory. Track quantity, package, brand, location, and vendor pricing across your parts, scan the Data Matrix on a Digi-Key or Mouser bag to enrich a part in one call, and generate bin and part labels. This repo is one of three: `firebin-api` (here), `firebin-web` (the React client), and `firebin` (compose files and self-host docs).
 
-## Run locally
+FireBin is in alpha.
 
-From the workspace `local/` folder (starts Postgres + the API in Docker):
+## Stack
 
+- Go 1.26, standard-library `net/http` with a hand-rolled router. No web framework.
+- Postgres 16 through pgx. Raw SQL in `internal/repository`, no ORM.
+- golang-migrate for schema, River for background jobs (enrichment, bulk work).
+- JWT access tokens, hashed refresh tokens, and `fbin_pat_` personal access tokens.
+
+## Run it for development
+
+The quickest path is the local stack in the `firebin` repo, which starts Postgres and this API together:
+
+```sh
+cd local && docker compose up -d --build
 ```
-docker compose -p firebin-local up -d --build
-```
 
-Or run the API against a local Postgres directly:
+To run the API against a Postgres you already have, set two variables and go:
 
-```
-export DATABASE_URL="postgres://firebin:firebin@localhost:5432/firebin?sslmode=disable"
-export JWT_SECRET="$(openssl rand -hex 32)"
+```sh
+export DATABASE_URL='postgres://firebin:firebin@localhost:5432/firebin?sslmode=disable'
+export JWT_SECRET="$(openssl rand -base64 48)"
 go run ./cmd/api
 ```
 
-The API refuses to start without `JWT_SECRET`. Migrations run automatically on boot.
+The service applies its own migrations on boot, so a fresh database comes up ready. It listens on `:8080`.
 
-## Endpoints (current)
+The first account to register becomes the instance admin, and registration then closes. Set `REGISTRATION_ENABLED=true` to allow open signup instead.
 
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| GET | `/api/v1/health` | — | Liveness + version |
-| POST | `/api/v1/auth/register` | — | Create user (first user becomes admin) |
-| POST | `/api/v1/auth/login` | — | Username/password → token pair |
-| POST | `/api/v1/auth/refresh` | — | Rotate refresh token → new pair |
-| POST | `/api/v1/auth/logout` | — | Revoke a refresh token |
-| GET | `/api/v1/me` | Bearer | Current user |
-| POST | `/api/v1/tokens` | Bearer | Mint a personal access token |
-| GET | `/api/v1/tokens` | Bearer | List own tokens |
-| DELETE | `/api/v1/tokens/{id}` | Bearer | Revoke a token |
+## Environment
 
-## Data model
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string. Defaults to the local dev database above. |
+| `JWT_SECRET` | Signs session tokens. Set a stable value; changing it logs everyone out. |
+| `REGISTRATION_ENABLED` | `true` to allow open signup. Off by default; the first user still bootstraps as admin. |
+| `DIGIKEY_CLIENT_ID` / `DIGIKEY_CLIENT_SECRET` | Optional Digi-Key V4 enrichment. You can set these in the UI instead. |
 
-Full Part / StockItem / SupplierPart (InvenTree-style) with a template/variant layer:
-a template part (`1k resistor`) holds variant parts (by package/tolerance), each with
-manufacturer parts (MPN + brand), supplier parts (vendor SKU + price breaks), and stock
-items (quantity at a storage location). See `internal/db/migrations/`.
+## Build and test
 
-## Config
+```sh
+go build ./cmd/api      # compile the server
+go test ./...           # 19 tests across 20 packages
+go vet ./...            # static checks
+```
 
-| Env | Default | Notes |
-|---|---|---|
-| `HOST` / `PORT` | `0.0.0.0` / `8080` | Listen address |
-| `DATABASE_URL` | local dev DSN | Postgres connection |
-| `JWT_SECRET` | — | **Required.** ≥32 random bytes |
-| `JWT_ACCESS_TTL` | `30m` | Access token lifetime |
-| `JWT_REFRESH_TTL` | `720h` | Refresh token lifetime |
-| `REGISTRATION_ENABLED` | `true` | Allow non-first-user signups |
-| `ATTACHMENT_STORAGE_PATH` | `./data/attachments` | BYO datasheet/image/STEP storage |
+CI runs the same three against a Postgres service, plus golangci-lint, on every push and pull request. A tagged release (`vYY.M.rev`, for example `v26.7.0`) builds the Docker image and pushes it to `ghcr.io/fireball1725/firebin-api`.
+
+## Enrichment
+
+Scanning a distributor barcode matches an existing part locally at no API cost. To pull datasheets, parameters, images, and price breaks by MPN, the API calls Digi-Key first (the free V4 API) and Nexar as a fallback. Both are configured under Settings in the web client, or through the environment variables above.
+
+## Contributing
+
+See [CLAUDE.md](CLAUDE.md) for the architecture, the conventions, and the checks a pull request has to pass. To deploy FireBin rather than work on it, start from the [`firebin`](https://github.com/FireBall1725/firebin) repo.
+
+## Licence
+
+AGPL-3.0-only. See [LICENSE](LICENSE).

@@ -59,9 +59,16 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// First user bootstraps as admin; anyone added after (only when registration
+	// is enabled) starts as a member. Admins can change roles afterward.
+	role := "member"
+	if isFirst {
+		role = "admin"
+	}
 	u := &models.User{
 		Username:        req.Username,
 		PasswordHash:    hash,
+		Role:            role,
 		IsInstanceAdmin: isFirst,
 	}
 	if req.Email != "" {
