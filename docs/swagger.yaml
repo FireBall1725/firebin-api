@@ -1359,9 +1359,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: Restore an export produced by ExportData; existing rows are left
-        untouched.
+      description: Restore an export produced by ExportData. mode=merge (default)
+        skips existing rows; mode=replace wipes all data first and restores the export
+        exactly.
       parameters:
+      - description: merge (default) or replace
+        in: query
+        name: mode
+        type: string
       - description: request body
         in: body
         name: request

@@ -53,21 +53,24 @@ func (h *Handler) ExportData(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
-// ImportData restores an export produced by ExportData (admin only). Existing rows
-// (by primary key) are left untouched, so importing into a populated instance only
-// fills gaps; importing into an empty one is a full restore.
+// ImportData restores an export produced by ExportData (admin only). With
+// ?mode=replace it wipes every durable table first and loads the export exactly
+// (the correct choice for restoring a backup from another instance); otherwise it
+// merges, skipping rows that already exist by primary key.
 // @Summary     Import data
-// @Description Restore an export produced by ExportData; existing rows are left untouched.
+// @Description Restore an export produced by ExportData. mode=merge (default) skips existing rows; mode=replace wipes all data first and restores the export exactly.
 // @Tags        backup
 // @Security    BearerAuth
 // @Accept      json
 // @Produce     json
+// @Param       mode     query     string                  false  "merge (default) or replace"
 // @Param       request  body      map[string]interface{}  true   "request body"
 // @Success     200      {object}  map[string]interface{}
 // @Failure     400      {object}  map[string]interface{}
 // @Failure     401      {object}  map[string]interface{}
 // @Router      /import  [post]
 func (h *Handler) ImportData(w http.ResponseWriter, r *http.Request) {
+	replace := r.URL.Query().Get("mode") == "replace"
 	var in exportFile
 	// A full-instance export is the whole database as JSON and easily exceeds the
 	// default 1 MiB body cap, so allow a much larger body for this endpoint only.
@@ -82,7 +85,7 @@ func (h *Handler) ImportData(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusBadRequest, "export contains no tables")
 		return
 	}
-	counts, err := h.Backup.ImportAll(r.Context(), in.Tables)
+	counts, err := h.Backup.ImportAll(r.Context(), in.Tables, replace)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not import: "+err.Error())
 		return
@@ -91,5 +94,5 @@ func (h *Handler) ImportData(w http.ResponseWriter, r *http.Request) {
 	for _, c := range counts {
 		total += c
 	}
-	respond.JSON(w, http.StatusOK, map[string]any{"imported": total, "by_table": counts})
+	respond.JSON(w, http.StatusOK, map[string]any{"imported": total, "by_table": counts, "replaced": replace})
 }
