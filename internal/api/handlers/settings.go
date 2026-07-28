@@ -21,6 +21,9 @@ type providerSettings struct {
 	SecretSet  bool   `json:"secret_set"`
 	FromEnv    bool   `json:"from_env"`
 	Scope      string `json:"scope,omitempty"` // nexar only
+	// KeyOnly marks a provider that authenticates with a single API key and has
+	// no client id, so the client renders one field instead of two.
+	KeyOnly bool `json:"key_only,omitempty"` // mouser only
 }
 
 // enricherEnabled reports whether a provider participates in the default lookup
@@ -85,6 +88,13 @@ func (h *Handler) providerSettings(ctx context.Context, name, label string, conf
 	case "digikey":
 		ps.SecretSet = secret != "" || h.Cfg.DigiKeyClientSecret != ""
 		ps.FromEnv = clientID == "" && h.Cfg.DigiKeyClientID != ""
+	case "mouser":
+		// Mouser authenticates with one API key and has no client id. It is
+		// stored in the secret slot so the existing settings shape carries it;
+		// KeyOnly tells the client to show a single "API key" field.
+		ps.SecretSet = secret != "" || h.Cfg.MouserAPIKey != ""
+		ps.FromEnv = secret == "" && h.Cfg.MouserAPIKey != ""
+		ps.KeyOnly = true
 	}
 	return ps
 }

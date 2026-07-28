@@ -13,6 +13,7 @@ import (
 	"github.com/firelabsca/firebin-api/internal/jobs"
 	"github.com/firelabsca/firebin-api/internal/providers"
 	"github.com/firelabsca/firebin-api/internal/providers/digikey"
+	"github.com/firelabsca/firebin-api/internal/providers/mouser"
 	"github.com/firelabsca/firebin-api/internal/providers/nexar"
 	"github.com/firelabsca/firebin-api/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -95,9 +96,25 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 		}
 	}
 
-	// Order matters: Digi-Key first (free, own catalogue), Nexar as fallback.
+	mouserCreds := func(ctx context.Context) mouser.Credentials {
+		// Mouser has no client id, so the key lives in the secret slot the
+		// settings UI already writes.
+		key, _ := settings.Get(ctx, "mouser.client_secret")
+		if key == "" {
+			key = cfg.MouserAPIKey
+		}
+		currency, _ := settings.Get(ctx, "enrichment.currency")
+		if currency == "" {
+			currency = cfg.DigiKeyCurrency
+		}
+		return mouser.Credentials{APIKey: key, BaseURL: cfg.MouserBaseURL, Currency: currency}
+	}
+
+	// Order matters: Digi-Key first (free, own catalogue, richest parametrics),
+	// then Mouser (free but capped at 1000 lookups a day), Nexar as fallback.
 	enrichers := []providers.Enricher{
 		digikey.New(digikeyCreds),
+		mouser.New(mouserCreds),
 		nexar.New(nexarCreds),
 	}
 	enricherBy := make(map[string]providers.Enricher, len(enrichers))

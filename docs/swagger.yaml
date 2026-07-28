@@ -2799,6 +2799,44 @@ paths:
       summary: Bulk enrich parts
       tags:
       - parts
+  /parts/bulk/minimum-stock:
+    post:
+      consumes:
+      - application/json
+      description: Set the reorder threshold (minimum stock) on the given parts. Zero
+        clears the threshold.
+      parameters:
+      - description: Part ids and minimum stock
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Bulk set reorder point
+      tags:
+      - parts
   /parts/bulk/move:
     post:
       consumes:

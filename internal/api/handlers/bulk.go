@@ -52,6 +52,52 @@ func (h *Handler) BulkMoveParts(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, map[string]int{"moved": moved, "failed": failed})
 }
 
+type bulkMinimumStockRequest struct {
+	PartIDs      []uuid.UUID `json:"part_ids"`
+	MinimumStock float64     `json:"minimum_stock"`
+}
+
+// BulkSetMinimumStock sets the reorder threshold on every given part.
+//
+// Note that zero is not "reorder at zero", it clears the threshold: ListLowStock
+// filters on `minimum_stock > 0`, so a part set to zero drops off the low-stock
+// list entirely. The client is expected to say which of the two it is doing.
+// @Summary     Bulk set reorder point
+// @Description Set the reorder threshold (minimum stock) on the given parts. Zero clears the threshold.
+// @Tags        parts
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true  "Part ids and minimum stock"
+// @Success     200  {object}  map[string]int
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /parts/bulk/minimum-stock  [post]
+func (h *Handler) BulkSetMinimumStock(w http.ResponseWriter, r *http.Request) {
+	var req bulkMinimumStockRequest
+	if !respond.Decode(w, r, &req) {
+		return
+	}
+	if len(req.PartIDs) == 0 {
+		respond.Error(w, http.StatusBadRequest, "part_ids is required")
+		return
+	}
+	if req.MinimumStock < 0 {
+		respond.Error(w, http.StatusBadRequest, "minimum_stock cannot be negative")
+		return
+	}
+	updated, err := h.Parts.SetMinimumStock(r.Context(), req.PartIDs, req.MinimumStock)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not set the reorder point")
+		return
+	}
+	h.Bus.Publish("parts")
+	respond.JSON(w, http.StatusOK, map[string]int{
+		"updated": int(updated),
+		"missing": len(req.PartIDs) - int(updated),
+	})
+}
+
 type bulkEnrichRequest struct {
 	PartIDs []uuid.UUID `json:"part_ids"`
 }
