@@ -48,6 +48,12 @@ type Config struct {
 	DigiKeySite         string // locale site + ship-to country, e.g. "CA"
 	DigiKeyLanguage     string // e.g. "en"
 	DigiKeyCurrency     string // e.g. "CAD"
+
+	// Mouser Search API credentials. A single key from mouser.com/api-search,
+	// no OAuth step. Published limits are 30 calls/minute and 1000/day, so this
+	// sits behind Digi-Key in the default chain.
+	MouserAPIKey  string
+	MouserBaseURL string // empty → production
 }
 
 func Load() *Config {
@@ -75,6 +81,8 @@ func Load() *Config {
 		DigiKeySite:           getEnv("DIGIKEY_SITE", "CA"),
 		DigiKeyLanguage:       getEnv("DIGIKEY_LANGUAGE", "en"),
 		DigiKeyCurrency:       getEnv("DIGIKEY_CURRENCY", "CAD"),
+		MouserAPIKey:          getEnv("MOUSER_API_KEY", ""),
+		MouserBaseURL:         getEnv("MOUSER_BASE_URL", ""),
 	}
 }
 

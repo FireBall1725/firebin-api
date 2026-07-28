@@ -73,6 +73,7 @@ func NewRouter(h *handlers.Handler) http.Handler {
 	protected("POST /api/v1/parts", h.CreatePart)
 	protected("POST /api/v1/parts/bulk/move", h.BulkMoveParts)
 	protected("POST /api/v1/parts/bulk/enrich", h.BulkEnrichParts)
+	protected("POST /api/v1/parts/bulk/minimum-stock", h.BulkSetMinimumStock)
 	protected("GET /api/v1/parts/{id}", h.GetPart)
 	protected("PATCH /api/v1/parts/{id}", h.UpdatePart)
 	protected("DELETE /api/v1/parts/{id}", h.DeletePart)

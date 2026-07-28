@@ -272,6 +272,22 @@ func (r *PartRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// SetMinimumStock sets the reorder threshold on many parts at once and returns
+// how many rows changed. One statement rather than a loop: unlike a bulk move
+// there is no per-part work to do, so there is nothing to report per part and
+// nothing to partially fail. Ids that do not exist are silently absent from the
+// count, which is what lets the caller tell "some ids were stale" from
+// "everything applied".
+func (r *PartRepo) SetMinimumStock(ctx context.Context, ids []uuid.UUID, minimum float64) (int64, error) {
+	ct, err := r.pool.Exec(ctx, `
+		UPDATE parts SET minimum_stock = $2, updated_at = NOW()
+		WHERE id = ANY($1)`, ids, minimum)
+	if err != nil {
+		return 0, err
+	}
+	return ct.RowsAffected(), nil
+}
+
 // ── Parameters ───────────────────────────────────────────────────────────────
 
 func (r *PartRepo) GetParameters(ctx context.Context, partID uuid.UUID) ([]models.PartParameter, error) {
