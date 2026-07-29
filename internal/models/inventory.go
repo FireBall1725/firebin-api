@@ -176,6 +176,13 @@ type KicadIndexMeta struct {
 	BytesStored    int64     `json:"bytes_stored"`
 }
 
+// KicadUsage is a part that references a library item.
+type KicadUsage struct {
+	PartID   uuid.UUID `json:"part_id"`
+	PartName string    `json:"part_name"`
+	Category string    `json:"category,omitempty"`
+}
+
 // KicadSuggestion is one proposed mapping with the evidence behind it. Source
 // is "bom", "mpn", "category" or "package"; Confidence is 0-100 and exists to
 // order the list, not to be shown as a number.

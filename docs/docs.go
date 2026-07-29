@@ -1429,6 +1429,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/kicad/libraries/usage": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "Parts using a KiCad library item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "symbol or footprint",
+                        "name": "kind",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Library ID, e.g. Device:R",
+                        "name": "lib_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadUsage"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/labels/catalog": {
             "get": {
                 "security": [
@@ -6536,6 +6586,20 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadSuggestion"
                     }
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.KicadUsage": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "part_id": {
+                    "type": "string"
+                },
+                "part_name": {
+                    "type": "string"
                 }
             }
         },

@@ -383,3 +383,28 @@ func (h *Handler) dropTerminalCountMismatches(ctx context.Context, s *models.Kic
 	}
 	s.Symbols = kept
 }
+
+// ListKicadUsage lists the parts referencing one library item.
+// @Summary     Parts using a KiCad library item
+// @Tags        kicad
+// @Security    BearerAuth
+// @Produce     json
+// @Param       kind    query     string  true  "symbol or footprint"
+// @Param       lib_id  query     string  true  "Library ID, e.g. Device:R"
+// @Success     200  {array}   models.KicadUsage
+// @Failure     400  {object}  map[string]interface{}
+// @Router      /kicad/libraries/usage  [get]
+func (h *Handler) ListKicadUsage(w http.ResponseWriter, r *http.Request) {
+	kind := r.URL.Query().Get("kind")
+	libID := r.URL.Query().Get("lib_id")
+	if !validKind(kind) || libID == "" {
+		respond.Error(w, http.StatusBadRequest, "kind and lib_id are required")
+		return
+	}
+	out, err := h.KicadLib.Usage(r.Context(), kind, libID)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not list usage")
+		return
+	}
+	respond.JSON(w, http.StatusOK, out)
+}

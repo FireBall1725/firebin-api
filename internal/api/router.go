@@ -79,6 +79,7 @@ func NewRouter(h *handlers.Handler) http.Handler {
 	protected("GET /api/v1/kicad/libraries/items", h.ListKicadLibraryItems)
 	protected("GET /api/v1/kicad/libraries/drawing", h.GetKicadDrawing)
 	protected("GET /api/v1/kicad/libraries/status", h.GetKicadIndexMeta)
+	protected("GET /api/v1/kicad/libraries/usage", h.ListKicadUsage)
 	admin("POST /api/v1/kicad/libraries/batch", h.UploadKicadLibraryBatch)
 	admin("POST /api/v1/kicad/libraries/finish", h.FinishKicadLibraryScan)
 	protected("GET /api/v1/parts", h.ListParts)

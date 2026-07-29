@@ -274,6 +274,15 @@ definitions:
           $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadSuggestion'
         type: array
     type: object
+  github_com_firelabsca_firebin-api_internal_models.KicadUsage:
+    properties:
+      category:
+        type: string
+      part_id:
+        type: string
+      part_name:
+        type: string
+    type: object
   github_com_firelabsca_firebin-api_internal_models.LabelMedia:
     properties:
       brand:
@@ -1750,6 +1759,38 @@ paths:
       security:
       - BearerAuth: []
       summary: KiCad index status
+      tags:
+      - kicad
+  /kicad/libraries/usage:
+    get:
+      parameters:
+      - description: symbol or footprint
+        in: query
+        name: kind
+        required: true
+        type: string
+      - description: Library ID, e.g. Device:R
+        in: query
+        name: lib_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadUsage'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Parts using a KiCad library item
       tags:
       - kicad
   /labels/catalog:

@@ -288,3 +288,32 @@ func gunzip(b []byte) ([]byte, error) {
 	defer zr.Close()
 	return io.ReadAll(io.LimitReader(zr, maxSourceBytes))
 }
+
+// Usage lists the parts referencing a library item, the inverse of the part
+// detail view. It answers "what breaks if this library goes away", which is the
+// question a library browser exists to support.
+func (r *KicadLibraryRepo) Usage(ctx context.Context, kind, libID string) ([]models.KicadUsage, error) {
+	col := "kicad_symbol"
+	if kind == "footprint" {
+		col = "kicad_footprint"
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT p.id, p.name, COALESCE(c.name, '')
+		FROM parts p LEFT JOIN categories c ON c.id = p.category_id
+		WHERE p.`+col+` = $1
+		ORDER BY p.name`, libID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []models.KicadUsage{}
+	for rows.Next() {
+		var u models.KicadUsage
+		if err := rows.Scan(&u.PartID, &u.PartName, &u.Category); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
