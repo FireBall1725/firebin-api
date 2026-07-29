@@ -20,14 +20,16 @@ func NewPartRepo(pool *pgxpool.Pool) *PartRepo { return &PartRepo{pool: pool} }
 
 // partCols selects the base part columns, casting numeric to float8 so pgx can
 // scan straight into float64.
-const partCols = `parts.id, parts.category_id, parts.variant_of, parts.name, parts.description, parts.ipn, parts.package, parts.keywords,
+const partCols = `parts.id, parts.category_id, parts.variant_of, parts.name, parts.description, parts.ipn, parts.package,
+	parts.kicad_symbol, parts.kicad_footprint, parts.keywords,
 	parts.barcode, parts.image_path, parts.is_template, parts.is_component, parts.is_assembly, parts.is_purchaseable,
 	parts.is_trackable, parts.minimum_stock::float8, parts.default_location_id, parts.created_at, parts.updated_at`
 
 func scanPart(row pgx.Row) (*models.Part, error) {
 	var p models.Part
 	if err := row.Scan(
-		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package, &p.Keywords,
+		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package,
+		&p.KicadSymbol, &p.KicadFootprint, &p.Keywords,
 		&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
 		&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
 	); err != nil {
@@ -101,7 +103,8 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 		var p models.Part
 		var mpn, mfr, locName *string
 		if err := rows.Scan(
-			&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package, &p.Keywords,
+			&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package,
+			&p.KicadSymbol, &p.KicadFootprint, &p.Keywords,
 			&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
 			&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
 			&p.TotalStock, &p.VariantCount, &mpn, &mfr, &locName, &p.PrimaryLocationID,
@@ -126,7 +129,8 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 func scanPartWithTotals(row pgx.Row) (*models.Part, error) {
 	var p models.Part
 	if err := row.Scan(
-		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package, &p.Keywords,
+		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package,
+		&p.KicadSymbol, &p.KicadFootprint, &p.Keywords,
 		&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
 		&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
 		&p.TotalStock, &p.VariantCount,
@@ -232,12 +236,12 @@ func (r *PartRepo) Create(ctx context.Context, p *models.Part) error {
 	return r.pool.QueryRow(ctx, `
 		INSERT INTO parts (category_id, variant_of, name, description, ipn, package, keywords,
 			barcode, image_path, is_template, is_component, is_assembly, is_purchaseable,
-			is_trackable, minimum_stock, default_location_id)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+			is_trackable, minimum_stock, default_location_id, kicad_symbol, kicad_footprint)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 		RETURNING id, created_at, updated_at`,
 		p.CategoryID, p.VariantOf, p.Name, p.Description, p.IPN, p.Package, p.Keywords,
 		p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent, p.IsAssembly, p.IsPurchaseable,
-		p.IsTrackable, p.MinimumStock, p.DefaultLocationID,
+		p.IsTrackable, p.MinimumStock, p.DefaultLocationID, p.KicadSymbol, p.KicadFootprint,
 	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 }
 
@@ -246,12 +250,12 @@ func (r *PartRepo) Update(ctx context.Context, p *models.Part) error {
 		UPDATE parts SET category_id=$2, variant_of=$3, name=$4, description=$5, ipn=$6, package=$7,
 			keywords=$8, barcode=$9, image_path=$10, is_template=$11, is_component=$12,
 			is_assembly=$13, is_purchaseable=$14, is_trackable=$15, minimum_stock=$16,
-			default_location_id=$17
+			default_location_id=$17, kicad_symbol=$18, kicad_footprint=$19
 		WHERE id=$1`,
 		p.ID, p.CategoryID, p.VariantOf, p.Name, p.Description, p.IPN, p.Package,
 		p.Keywords, p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent,
 		p.IsAssembly, p.IsPurchaseable, p.IsTrackable, p.MinimumStock,
-		p.DefaultLocationID)
+		p.DefaultLocationID, p.KicadSymbol, p.KicadFootprint)
 	if err != nil {
 		return err
 	}

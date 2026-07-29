@@ -1120,6 +1120,365 @@ const docTemplate = `{
                 }
             }
         },
+        "/kicad/libraries": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List indexed KiCad libraries and how many items each holds.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "List KiCad libraries",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter to symbol or footprint",
+                        "name": "kind",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadLibrarySummary"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/kicad/libraries/batch": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Store one chunk of a library scan. Repeat, then call finish.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "Upload a KiCad library batch",
+                "parameters": [
+                    {
+                        "description": "scan_id and items",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/kicad/libraries/drawing": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Render data for one symbol or footprint, parsed from the uploaded source.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "Get KiCad item drawing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "symbol or footprint",
+                        "name": "kind",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Library ID, e.g. Device:R",
+                        "name": "lib_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_kicad.LibDrawing"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/kicad/libraries/finish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Drop items not in this scan and record provenance.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "Finish a KiCad library scan",
+                "parameters": [
+                    {
+                        "description": "scan_id, source, kicad_version",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadIndexMeta"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/kicad/libraries/items": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "List items in a KiCad library",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "symbol or footprint",
+                        "name": "kind",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Library nickname",
+                        "name": "lib",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadLibraryItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/kicad/libraries/search": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Search indexed KiCad symbols or footprints by \"Lib:Name\" substring.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "Search KiCad library items",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "symbol or footprint",
+                        "name": "kind",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search text; all terms must match",
+                        "name": "q",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadLibraryItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/kicad/libraries/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Provenance and counts for the current KiCad library index.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "KiCad index status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadIndexMeta"
+                        }
+                    }
+                }
+            }
+        },
+        "/kicad/libraries/usage": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "Parts using a KiCad library item",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "symbol or footprint",
+                        "name": "kind",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Library ID, e.g. Device:R",
+                        "name": "lib_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadUsage"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/labels/catalog": {
             "get": {
                 "security": [
@@ -3158,6 +3517,47 @@ const docTemplate = `{
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/parts/{id}/kicad/suggestions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Propose symbol and footprint candidates from past BOMs, MPN name matches, and package/category rules.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kicad"
+                ],
+                "summary": "Suggest KiCad mappings for a part",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Part id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadSuggestions"
                         }
                     },
                     "404": {
@@ -5796,6 +6196,112 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "github_com_firelabsca_firebin-api_internal_kicad.BBoxExtent": {
+            "type": "object",
+            "properties": {
+                "maxx": {
+                    "type": "number"
+                },
+                "maxy": {
+                    "type": "number"
+                },
+                "minx": {
+                    "type": "number"
+                },
+                "miny": {
+                    "type": "number"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_kicad.DrawItem": {
+            "type": "object",
+            "properties": {
+                "angle": {
+                    "description": "pad rotation, degrees clockwise",
+                    "type": "number"
+                },
+                "center": {
+                    "description": "circle",
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "drill": {
+                    "type": "number"
+                },
+                "fill": {
+                    "description": "Fill is \"none\", \"outline\" or \"background\", straight from KiCad.",
+                    "type": "string"
+                },
+                "layer": {
+                    "description": "F | B for pads, silk for outlines",
+                    "type": "string"
+                },
+                "number": {
+                    "description": "pad number; empty for mechanical pads",
+                    "type": "string"
+                },
+                "points": {
+                    "description": "Points is the polyline for Type \"line\", and the pad centre (single\npoint) for Type \"pad\".",
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "number",
+                            "format": "float64"
+                        }
+                    }
+                },
+                "r": {
+                    "description": "circle",
+                    "type": "number"
+                },
+                "shape": {
+                    "description": "pad: rect | roundrect | circle | oval",
+                    "type": "string"
+                },
+                "size": {
+                    "description": "pad",
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "w": {
+                    "description": "stroke width",
+                    "type": "number"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_kicad.LibDrawing": {
+            "type": "object",
+            "properties": {
+                "bbox": {
+                    "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_kicad.BBoxExtent"
+                },
+                "electrical_pads": {
+                    "type": "integer"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_kicad.DrawItem"
+                    }
+                },
+                "kind": {
+                    "description": "symbol | footprint",
+                    "type": "string"
+                },
+                "pins": {
+                    "description": "Pins counts a symbol's pins. ElectricalPads counts a footprint's numbered\npads, ignoring repeats (a split pad shares one number) and mechanical pads\n(mounting holes carry no number). Together they let a caller sanity-check\na symbol/footprint pairing without re-parsing anything.",
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_firelabsca_firebin-api_internal_models.APIToken": {
             "type": "object",
             "properties": {
@@ -5847,6 +6353,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ipn": {
+                    "type": "string"
+                },
+                "lib_id": {
                     "type": "string"
                 },
                 "manufacturer": {
@@ -5976,6 +6485,120 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ts": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.KicadIndexMeta": {
+            "type": "object",
+            "properties": {
+                "bytes_stored": {
+                    "type": "integer"
+                },
+                "footprint_count": {
+                    "type": "integer"
+                },
+                "kicad_version": {
+                    "type": "string"
+                },
+                "scanned_at": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "symbol_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.KicadLibraryItem": {
+            "type": "object",
+            "properties": {
+                "has_source": {
+                    "description": "HasSource distinguishes an item we can draw from one we only know the\nname of, which is what an index-only scan leaves behind.",
+                    "type": "boolean"
+                },
+                "kind": {
+                    "description": "symbol | footprint",
+                    "type": "string"
+                },
+                "lib": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.KicadLibrarySummary": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "kind": {
+                    "type": "string"
+                },
+                "lib": {
+                    "type": "string"
+                },
+                "with_source": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.KicadSuggestion": {
+            "type": "object",
+            "properties": {
+                "confidence": {
+                    "type": "integer"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "lib_id": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.KicadSuggestions": {
+            "type": "object",
+            "properties": {
+                "footprints": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadSuggestion"
+                    }
+                },
+                "notes": {
+                    "description": "Notes explains anything deliberately withheld. A suggestion that vanishes\nwithout explanation reads as \"nothing found\", which is a different claim.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "symbols": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadSuggestion"
+                    }
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.KicadUsage": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "part_id": {
+                    "type": "string"
+                },
+                "part_name": {
                     "type": "string"
                 }
             }
@@ -6183,6 +6806,14 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "keywords": {
+                    "type": "string"
+                },
+                "kicad_footprint": {
+                    "description": "e.g. \"Resistor_SMD:R_0603_1608Metric\"",
+                    "type": "string"
+                },
+                "kicad_symbol": {
+                    "description": "KiCad LIB_ID, e.g. \"Device:R\"",
                     "type": "string"
                 },
                 "manufacturer_parts": {

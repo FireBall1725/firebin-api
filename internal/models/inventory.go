@@ -44,6 +44,8 @@ type Part struct {
 	Description       *string    `json:"description,omitempty"`
 	IPN               *string    `json:"ipn,omitempty"` // FireBin internal part number
 	Package           *string    `json:"package,omitempty"`
+	KicadSymbol       *string    `json:"kicad_symbol,omitempty"`    // KiCad LIB_ID, e.g. "Device:R"
+	KicadFootprint    *string    `json:"kicad_footprint,omitempty"` // e.g. "Resistor_SMD:R_0603_1608Metric"
 	Keywords          *string    `json:"keywords,omitempty"`
 	Barcode           *string    `json:"barcode,omitempty"`
 	ImagePath         *string    `json:"image_path,omitempty"`
@@ -129,6 +131,76 @@ type StockTransaction struct {
 	Note              *string    `json:"note,omitempty"`
 	UserID            *uuid.UUID `json:"user_id,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
+}
+
+// KicadLibraryItem is one entry in the uploaded copy of the user's KiCad
+// libraries. Lib and Name combine into the "Lib:Name" identifier KiCad calls a
+// LIB_ID, e.g. lib "Device" + name "R" for "Device:R".
+type KicadLibraryItem struct {
+	Kind string `json:"kind"` // symbol | footprint
+	Lib  string `json:"lib"`
+	Name string `json:"name"`
+	// HasSource distinguishes an item we can draw from one we only know the
+	// name of, which is what an index-only scan leaves behind.
+	HasSource bool `json:"has_source"`
+}
+
+// LibID renders the "Lib:Name" identifier stored on a part.
+func (k KicadLibraryItem) LibID() string { return k.Lib + ":" + k.Name }
+
+// KicadLibraryUpload is one item as the indexer sends it. Source is the raw
+// S-expression; the server compresses it on the way in.
+type KicadLibraryUpload struct {
+	Kind   string `json:"kind"`
+	Lib    string `json:"lib"`
+	Name   string `json:"name"`
+	Source string `json:"source,omitempty"`
+}
+
+// KicadLibrarySummary is one library's row in the viewer.
+type KicadLibrarySummary struct {
+	Kind       string `json:"kind"`
+	Lib        string `json:"lib"`
+	Count      int    `json:"count"`
+	WithSource int    `json:"with_source"`
+}
+
+// KicadIndexMeta records which machine produced the current index, so a missing
+// library can be told apart from a scan run on the wrong laptop.
+type KicadIndexMeta struct {
+	Source         string    `json:"source"`
+	KicadVersion   string    `json:"kicad_version,omitempty"`
+	ScannedAt      time.Time `json:"scanned_at"`
+	SymbolCount    int       `json:"symbol_count"`
+	FootprintCount int       `json:"footprint_count"`
+	BytesStored    int64     `json:"bytes_stored"`
+}
+
+// KicadUsage is a part that references a library item.
+type KicadUsage struct {
+	PartID   uuid.UUID `json:"part_id"`
+	PartName string    `json:"part_name"`
+	Category string    `json:"category,omitempty"`
+}
+
+// KicadSuggestion is one proposed mapping with the evidence behind it. Source
+// is "bom", "mpn", "category" or "package"; Confidence is 0-100 and exists to
+// order the list, not to be shown as a number.
+type KicadSuggestion struct {
+	LibID      string `json:"lib_id"`
+	Source     string `json:"source"`
+	Detail     string `json:"detail,omitempty"`
+	Confidence int    `json:"confidence"`
+}
+
+// KicadSuggestions groups proposals for one part. Always non-nil slices: the UI
+// checks .length and a JSON null would crash it.
+type KicadSuggestions struct {
+	Symbols    []KicadSuggestion `json:"symbols"`
+	Footprints []KicadSuggestion `json:"footprints"`
+	// Notes explains anything deliberately withheld. A suggestion that vanishes
+	// without explanation reads as "nothing found", which is a different claim.
+	Notes []string `json:"notes,omitempty"`
 }
 
 // Stats is the dashboard summary.

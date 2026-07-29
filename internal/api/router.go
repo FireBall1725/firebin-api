@@ -69,6 +69,19 @@ func NewRouter(h *handlers.Handler) http.Handler {
 
 	// Parts
 	protected("GET /api/v1/parameter-templates", h.ListParameterTemplates)
+
+	// KiCad library index. Reads are open to any signed-in user (the part
+	// editor and the library viewer both need them); uploading replaces the
+	// whole index, so it is admin-only.
+	protected("GET /api/v1/parts/{id}/kicad/suggestions", h.SuggestKicadForPart)
+	protected("GET /api/v1/kicad/libraries", h.ListKicadLibraries)
+	protected("GET /api/v1/kicad/libraries/search", h.SearchKicadLibrary)
+	protected("GET /api/v1/kicad/libraries/items", h.ListKicadLibraryItems)
+	protected("GET /api/v1/kicad/libraries/drawing", h.GetKicadDrawing)
+	protected("GET /api/v1/kicad/libraries/status", h.GetKicadIndexMeta)
+	protected("GET /api/v1/kicad/libraries/usage", h.ListKicadUsage)
+	admin("POST /api/v1/kicad/libraries/batch", h.UploadKicadLibraryBatch)
+	admin("POST /api/v1/kicad/libraries/finish", h.FinishKicadLibraryScan)
 	protected("GET /api/v1/parts", h.ListParts)
 	protected("POST /api/v1/parts", h.CreatePart)
 	protected("POST /api/v1/parts/bulk/move", h.BulkMoveParts)

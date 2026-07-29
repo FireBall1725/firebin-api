@@ -782,6 +782,7 @@ func (h *Handler) matchLines(r *http.Request, projectID uuid.UUID, lines []kicad
 			Quantity:     l.Quantity,
 			Value:        l.Value,
 			Footprint:    l.Footprint,
+			LibID:        l.LibID,
 			MPN:          l.MPN,
 			Manufacturer: l.Manufacturer,
 			SupplierSKU:  l.SupplierSKU,

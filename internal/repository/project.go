@@ -248,7 +248,7 @@ func (r *ProjectRepo) DeleteBoard(ctx context.Context, id uuid.UUID) error {
 
 func (r *ProjectRepo) listLines(ctx context.Context, boardID uuid.UUID) ([]models.BOMLine, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT l.id, l.board_id, l.refs, l.quantity, l.value, l.footprint, l.mpn,
+		SELECT l.id, l.board_id, l.refs, l.quantity, l.value, l.footprint, COALESCE(l.lib_id, ''), l.mpn,
 		       l.manufacturer, l.supplier_sku, l.ipn, l.description, l.part_id, COALESCE(p.name, ''), l.match_kind, l.position
 		FROM board_bom_lines l
 		LEFT JOIN parts p ON p.id = l.part_id
@@ -260,7 +260,7 @@ func (r *ProjectRepo) listLines(ctx context.Context, boardID uuid.UUID) ([]model
 	out := []models.BOMLine{}
 	for rows.Next() {
 		var l models.BOMLine
-		if err := rows.Scan(&l.ID, &l.BoardID, &l.Refs, &l.Quantity, &l.Value, &l.Footprint,
+		if err := rows.Scan(&l.ID, &l.BoardID, &l.Refs, &l.Quantity, &l.Value, &l.Footprint, &l.LibID,
 			&l.MPN, &l.Manufacturer, &l.SupplierSKU, &l.IPN, &l.Description, &l.PartID, &l.PartName, &l.MatchKind, &l.Position); err != nil {
 			return nil, err
 		}
@@ -273,11 +273,11 @@ func (r *ProjectRepo) listLines(ctx context.Context, boardID uuid.UUID) ([]model
 func (r *ProjectRepo) CreateBOMLine(ctx context.Context, l *models.BOMLine) error {
 	return r.pool.QueryRow(ctx, `
 		INSERT INTO board_bom_lines
-		  (board_id, refs, quantity, value, footprint, mpn, manufacturer, supplier_sku, ipn, description, part_id, match_kind, position)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
+		  (board_id, refs, quantity, value, footprint, lib_id, mpn, manufacturer, supplier_sku, ipn, description, part_id, match_kind, position)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
 		        COALESCE((SELECT MAX(position)+1 FROM board_bom_lines WHERE board_id = $1), 0))
 		RETURNING id, position`,
-		l.BoardID, l.Refs, l.Quantity, l.Value, l.Footprint, l.MPN, l.Manufacturer, l.SupplierSKU, l.IPN, l.Description, l.PartID, l.MatchKind).
+		l.BoardID, l.Refs, l.Quantity, l.Value, l.Footprint, nullIfEmpty(l.LibID), l.MPN, l.Manufacturer, l.SupplierSKU, l.IPN, l.Description, l.PartID, l.MatchKind).
 		Scan(&l.ID, &l.Position)
 }
 
@@ -286,9 +286,9 @@ func (r *ProjectRepo) UpdateBOMLine(ctx context.Context, l *models.BOMLine) (uui
 	var boardID uuid.UUID
 	err := r.pool.QueryRow(ctx, `
 		UPDATE board_bom_lines
-		SET refs=$2, quantity=$3, value=$4, footprint=$5, mpn=$6, manufacturer=$7, supplier_sku=$8, ipn=$9, description=$10, part_id=$11, match_kind=$12
+		SET refs=$2, quantity=$3, value=$4, footprint=$5, lib_id=$13, mpn=$6, manufacturer=$7, supplier_sku=$8, ipn=$9, description=$10, part_id=$11, match_kind=$12
 		WHERE id=$1 RETURNING board_id`,
-		l.ID, l.Refs, l.Quantity, l.Value, l.Footprint, l.MPN, l.Manufacturer, l.SupplierSKU, l.IPN, l.Description, l.PartID, l.MatchKind).
+		l.ID, l.Refs, l.Quantity, l.Value, l.Footprint, l.MPN, l.Manufacturer, l.SupplierSKU, l.IPN, l.Description, l.PartID, l.MatchKind, nullIfEmpty(l.LibID)).
 		Scan(&boardID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -303,7 +303,7 @@ func (r *ProjectRepo) UpdateBOMLine(ctx context.Context, l *models.BOMLine) (uui
 func (r *ProjectRepo) GetBOMLine(ctx context.Context, id uuid.UUID) (*models.BOMLine, error) {
 	var l models.BOMLine
 	err := r.pool.QueryRow(ctx, `
-		SELECT l.id, l.board_id, l.refs, l.quantity, l.value, l.footprint, l.mpn,
+		SELECT l.id, l.board_id, l.refs, l.quantity, l.value, l.footprint, COALESCE(l.lib_id, ''), l.mpn,
 		       l.manufacturer, l.supplier_sku, l.ipn, l.description, l.part_id, COALESCE(p.name, ''), l.match_kind, l.position
 		FROM board_bom_lines l LEFT JOIN parts p ON p.id = l.part_id
 		WHERE l.id = $1`, id).
@@ -344,9 +344,9 @@ func (r *ProjectRepo) ReplaceBOMLines(ctx context.Context, boardID uuid.UUID, li
 	for i, l := range lines {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO board_bom_lines
-			  (board_id, refs, quantity, value, footprint, mpn, manufacturer, supplier_sku, ipn, description, part_id, match_kind, position)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-			boardID, l.Refs, l.Quantity, l.Value, l.Footprint, l.MPN,
+			  (board_id, refs, quantity, value, footprint, lib_id, mpn, manufacturer, supplier_sku, ipn, description, part_id, match_kind, position)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+			boardID, l.Refs, l.Quantity, l.Value, l.Footprint, nullIfEmpty(l.LibID), l.MPN,
 			l.Manufacturer, l.SupplierSKU, l.IPN, l.Description, l.PartID, l.MatchKind, i); err != nil {
 			return err
 		}
@@ -501,4 +501,14 @@ func (r *ProjectRepo) FindPartByValueFootprint(ctx context.Context, value, footp
 		return uuid.Nil, "", false, err
 	}
 	return id, name, true, nil
+}
+
+// nullIfEmpty stores an absent lib_id as NULL rather than "". A .kicad_pcb has
+// footprints but no symbols and a CSV BOM has neither, so an empty string here
+// means "this source could not know", not "the designer chose nothing".
+func nullIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

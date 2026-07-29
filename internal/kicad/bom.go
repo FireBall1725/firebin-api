@@ -12,9 +12,13 @@ import (
 
 // Component is a single placed schematic symbol that belongs in the BOM.
 type Component struct {
-	Reference    string
-	Value        string
-	Footprint    string
+	Reference string
+	Value     string
+	Footprint string
+	// LibID is the KiCad symbol the designer placed, e.g. "Device:R". Already
+	// read for the power-symbol filter; kept because it is the authoritative
+	// symbol mapping for the part this line matches.
+	LibID        string
 	MPN          string
 	Manufacturer string
 	SupplierSKU  string
@@ -24,10 +28,14 @@ type Component struct {
 
 // BOMLine is a grouped BOM row (components sharing value+footprint+MPN).
 type BOMLine struct {
-	Refs         []string
-	Quantity     int
-	Value        string
-	Footprint    string
+	Refs      []string
+	Quantity  int
+	Value     string
+	Footprint string
+	// LibID is the KiCad symbol the grouped components were drawn with. Only
+	// set by the schematic parser: a .kicad_pcb has footprints but no symbols,
+	// and a CSV/xlsx BOM carries neither.
+	LibID        string
 	MPN          string
 	Manufacturer string
 	SupplierSKU  string // supplier/distributor SKU (LCSC, Digi-Key…), for matching
@@ -168,6 +176,7 @@ func componentFromSymbol(sym *node) (Component, bool) {
 		switch ch.head() {
 		case "lib_id":
 			libID = ch.atom(1)
+			c.LibID = libID
 		case "in_bom":
 			inBom = ch.atom(1) != "no"
 		case "on_board":
@@ -235,6 +244,7 @@ func GroupComponents(comps []Component) []BOMLine {
 			g = &BOMLine{
 				Value:        c.Value,
 				Footprint:    c.Footprint,
+				LibID:        c.LibID,
 				MPN:          c.MPN,
 				Manufacturer: c.Manufacturer,
 				SupplierSKU:  c.SupplierSKU,
@@ -253,6 +263,9 @@ func GroupComponents(comps []Component) []BOMLine {
 		}
 		if g.SupplierSKU == "" {
 			g.SupplierSKU = c.SupplierSKU
+		}
+		if g.LibID == "" {
+			g.LibID = c.LibID
 		}
 		if g.IPN == "" {
 			g.IPN = c.IPN

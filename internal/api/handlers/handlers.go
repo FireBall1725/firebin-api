@@ -39,6 +39,7 @@ type Handler struct {
 	LabelMedia     *repository.LabelMediaRepo
 	LabelTemplates *repository.LabelTemplateRepo
 	Backup         *repository.BackupRepo
+	KicadLib       *repository.KicadLibraryRepo
 	Bus            *events.Broker
 
 	// Enrichers are the MPN-lookup providers, tried in order (Digi-Key first,
@@ -139,6 +140,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 		LabelMedia:     repository.NewLabelMediaRepo(pool),
 		LabelTemplates: repository.NewLabelTemplateRepo(pool),
 		Backup:         repository.NewBackupRepo(pool),
+		KicadLib:       repository.NewKicadLibraryRepo(pool),
 		Bus:            events.NewBroker(),
 		Enrichers:      enrichers,
 		EnricherBy:     enricherBy,

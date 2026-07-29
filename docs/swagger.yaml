@@ -1,5 +1,85 @@
 basePath: /api/v1
 definitions:
+  github_com_firelabsca_firebin-api_internal_kicad.BBoxExtent:
+    properties:
+      maxx:
+        type: number
+      maxy:
+        type: number
+      minx:
+        type: number
+      miny:
+        type: number
+    type: object
+  github_com_firelabsca_firebin-api_internal_kicad.DrawItem:
+    properties:
+      angle:
+        description: pad rotation, degrees clockwise
+        type: number
+      center:
+        description: circle
+        items:
+          type: number
+        type: array
+      drill:
+        type: number
+      fill:
+        description: Fill is "none", "outline" or "background", straight from KiCad.
+        type: string
+      layer:
+        description: F | B for pads, silk for outlines
+        type: string
+      number:
+        description: pad number; empty for mechanical pads
+        type: string
+      points:
+        description: |-
+          Points is the polyline for Type "line", and the pad centre (single
+          point) for Type "pad".
+        items:
+          items:
+            format: float64
+            type: number
+          type: array
+        type: array
+      r:
+        description: circle
+        type: number
+      shape:
+        description: 'pad: rect | roundrect | circle | oval'
+        type: string
+      size:
+        description: pad
+        items:
+          type: number
+        type: array
+      type:
+        type: string
+      w:
+        description: stroke width
+        type: number
+    type: object
+  github_com_firelabsca_firebin-api_internal_kicad.LibDrawing:
+    properties:
+      bbox:
+        $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_kicad.BBoxExtent'
+      electrical_pads:
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_kicad.DrawItem'
+        type: array
+      kind:
+        description: symbol | footprint
+        type: string
+      pins:
+        description: |-
+          Pins counts a symbol's pins. ElectricalPads counts a footprint's numbered
+          pads, ignoring repeats (a split pad shares one number) and mechanical pads
+          (mounting holes carry no number). Together they let a caller sanity-check
+          a symbol/footprint pairing without re-parsing anything.
+        type: integer
+    type: object
   github_com_firelabsca_firebin-api_internal_models.APIToken:
     properties:
       created_at:
@@ -34,6 +114,8 @@ definitions:
       id:
         type: string
       ipn:
+        type: string
+      lib_id:
         type: string
       manufacturer:
         type: string
@@ -120,6 +202,85 @@ definitions:
       task_id:
         type: string
       ts:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.KicadIndexMeta:
+    properties:
+      bytes_stored:
+        type: integer
+      footprint_count:
+        type: integer
+      kicad_version:
+        type: string
+      scanned_at:
+        type: string
+      source:
+        type: string
+      symbol_count:
+        type: integer
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.KicadLibraryItem:
+    properties:
+      has_source:
+        description: |-
+          HasSource distinguishes an item we can draw from one we only know the
+          name of, which is what an index-only scan leaves behind.
+        type: boolean
+      kind:
+        description: symbol | footprint
+        type: string
+      lib:
+        type: string
+      name:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.KicadLibrarySummary:
+    properties:
+      count:
+        type: integer
+      kind:
+        type: string
+      lib:
+        type: string
+      with_source:
+        type: integer
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.KicadSuggestion:
+    properties:
+      confidence:
+        type: integer
+      detail:
+        type: string
+      lib_id:
+        type: string
+      source:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.KicadSuggestions:
+    properties:
+      footprints:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadSuggestion'
+        type: array
+      notes:
+        description: |-
+          Notes explains anything deliberately withheld. A suggestion that vanishes
+          without explanation reads as "nothing found", which is a different claim.
+        items:
+          type: string
+        type: array
+      symbols:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadSuggestion'
+        type: array
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.KicadUsage:
+    properties:
+      category:
+        type: string
+      part_id:
+        type: string
+      part_name:
         type: string
     type: object
   github_com_firelabsca_firebin-api_internal_models.LabelMedia:
@@ -257,6 +418,12 @@ definitions:
       is_trackable:
         type: boolean
       keywords:
+        type: string
+      kicad_footprint:
+        description: e.g. "Resistor_SMD:R_0603_1608Metric"
+        type: string
+      kicad_symbol:
+        description: KiCad LIB_ID, e.g. "Device:R"
         type: string
       manufacturer_parts:
         items:
@@ -1397,6 +1564,235 @@ paths:
       summary: Import data
       tags:
       - backup
+  /kicad/libraries:
+    get:
+      description: List indexed KiCad libraries and how many items each holds.
+      parameters:
+      - description: Filter to symbol or footprint
+        in: query
+        name: kind
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadLibrarySummary'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List KiCad libraries
+      tags:
+      - kicad
+  /kicad/libraries/batch:
+    post:
+      consumes:
+      - application/json
+      description: Store one chunk of a library scan. Repeat, then call finish.
+      parameters:
+      - description: scan_id and items
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upload a KiCad library batch
+      tags:
+      - kicad
+  /kicad/libraries/drawing:
+    get:
+      description: Render data for one symbol or footprint, parsed from the uploaded
+        source.
+      parameters:
+      - description: symbol or footprint
+        in: query
+        name: kind
+        required: true
+        type: string
+      - description: Library ID, e.g. Device:R
+        in: query
+        name: lib_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_kicad.LibDrawing'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get KiCad item drawing
+      tags:
+      - kicad
+  /kicad/libraries/finish:
+    post:
+      consumes:
+      - application/json
+      description: Drop items not in this scan and record provenance.
+      parameters:
+      - description: scan_id, source, kicad_version
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadIndexMeta'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Finish a KiCad library scan
+      tags:
+      - kicad
+  /kicad/libraries/items:
+    get:
+      parameters:
+      - description: symbol or footprint
+        in: query
+        name: kind
+        required: true
+        type: string
+      - description: Library nickname
+        in: query
+        name: lib
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadLibraryItem'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List items in a KiCad library
+      tags:
+      - kicad
+  /kicad/libraries/search:
+    get:
+      description: Search indexed KiCad symbols or footprints by "Lib:Name" substring.
+      parameters:
+      - description: symbol or footprint
+        in: query
+        name: kind
+        required: true
+        type: string
+      - description: Search text; all terms must match
+        in: query
+        name: q
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadLibraryItem'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Search KiCad library items
+      tags:
+      - kicad
+  /kicad/libraries/status:
+    get:
+      description: Provenance and counts for the current KiCad library index.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadIndexMeta'
+      security:
+      - BearerAuth: []
+      summary: KiCad index status
+      tags:
+      - kicad
+  /kicad/libraries/usage:
+    get:
+      parameters:
+      - description: symbol or footprint
+        in: query
+        name: kind
+        required: true
+        type: string
+      - description: Library ID, e.g. Device:R
+        in: query
+        name: lib_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadUsage'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Parts using a KiCad library item
+      tags:
+      - kicad
   /labels/catalog:
     get:
       description: Search the bundled catalogue of known label products (Avery sizes).
@@ -2607,6 +3003,33 @@ paths:
       summary: Upload part image
       tags:
       - parts
+  /parts/{id}/kicad/suggestions:
+    get:
+      description: Propose symbol and footprint candidates from past BOMs, MPN name
+        matches, and package/category rules.
+      parameters:
+      - description: Part id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.KicadSuggestions'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Suggest KiCad mappings for a part
+      tags:
+      - kicad
   /parts/{id}/manufacturer-parts:
     post:
       consumes:
