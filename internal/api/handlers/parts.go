@@ -28,6 +28,8 @@ type partRequest struct {
 	Description       *string              `json:"description"`
 	IPN               *string              `json:"ipn"`
 	Package           *string              `json:"package"`
+	KicadSymbol       *string              `json:"kicad_symbol"`
+	KicadFootprint    *string              `json:"kicad_footprint"`
 	Keywords          *string              `json:"keywords"`
 	Barcode           *string              `json:"barcode"`
 	ImagePath         *string              `json:"image_path"`
@@ -310,6 +312,8 @@ func partFromRequest(req *partRequest) *models.Part {
 		Description:       req.Description,
 		IPN:               normNilString(req.IPN),
 		Package:           req.Package,
+		KicadSymbol:       normNilString(req.KicadSymbol),
+		KicadFootprint:    normNilString(req.KicadFootprint),
 		Keywords:          req.Keywords,
 		Barcode:           req.Barcode,
 		ImagePath:         normNilString(req.ImagePath),
