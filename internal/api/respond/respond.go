@@ -34,6 +34,16 @@ func JSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
+// Raw writes an already-encoded JSON document. For payloads cached as JSONB
+// there is nothing to gain from decoding into a map only to re-encode it.
+func Raw(w http.ResponseWriter, status int, body []byte) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if _, err := w.Write(body); err != nil {
+		slog.Error("writing raw JSON response", "error", err)
+	}
+}
+
 // Error writes an error envelope with the given status code and message (no
 // stable code — the client shows the message as-is).
 func Error(w http.ResponseWriter, status int, msg string) {
