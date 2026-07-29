@@ -37,3 +37,26 @@ go test ./...        # keep it at green; add tests for new behaviour
 CI also runs golangci-lint against a Postgres service. Match the existing style and it stays quiet.
 
 Keep commits small and focused, and write a message that says what changed and why. Do not add `Co-Authored-By` or "Generated with" trailers; the commit is authored by the person who sent it.
+
+## Releasing
+
+Two channels, both run from Actions → Release → Run workflow. The version is
+computed from the date and the last tag as `YY.M.revision`; nothing in the
+source tree carries a version string.
+
+- **rc** builds `YY.M.rev-rc.N` and pushes only that tag. `:latest` is left
+  alone and the GitHub Release is marked as a pre-release. Use this to get a
+  real image ArgoCD can deploy while a change is still being tested.
+- **stable** builds `YY.M.rev`, moves `:latest`, and publishes a normal release.
+
+An rc and the stable release that follows share a version number: cut
+`26.8.0-rc.1`, `26.8.0-rc.2`, then release stable and you get `26.8.0`.
+
+The two channels exist because there are two separate "is this released?"
+signals and they have to agree. `/releases/latest` on GitHub excludes
+pre-releases, and the `:latest` image tag only ever moves on a stable release,
+so an update checker stays quiet until you actually ship.
+
+`main` is the trunk. Work on a branch, open a PR, merge once CI is green, then
+cut a release from `main`. There is no long-lived staging branch: an rc plus a
+deployment pinned to it does the same job without two branches to keep in step.
