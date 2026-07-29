@@ -1,0 +1,12 @@
+-- The KiCad symbol a BOM line was drawn with, e.g. "Device:R".
+--
+-- The schematic parser already reads lib_id off every symbol (it uses it to skip
+-- power symbols) and then discards it. Keeping it turns every board upload into
+-- a record of which symbol and footprint the designer actually chose, which is
+-- the only fully reliable source for mapping an inventory part to KiCad:
+-- package strings lie (a part listed as TO-253-4 was really laid out as
+-- SOT-143), while a shipped design does not.
+--
+-- Footprint has been captured since the feature shipped; this adds the other
+-- half. Existing rows keep NULL and simply contribute no symbol suggestion.
+ALTER TABLE board_bom_lines ADD COLUMN lib_id TEXT;

@@ -105,6 +105,7 @@ type BOMLine struct {
 	Quantity     int        `json:"quantity"`
 	Value        string     `json:"value"`
 	Footprint    string     `json:"footprint"`
+	LibID        string     `json:"lib_id,omitempty"`
 	MPN          string     `json:"mpn,omitempty"`
 	Manufacturer string     `json:"manufacturer,omitempty"`
 	SupplierSKU  string     `json:"supplier_sku,omitempty"`
