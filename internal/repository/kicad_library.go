@@ -48,7 +48,7 @@ func (r *KicadLibraryRepo) Search(ctx context.Context, kind, q string) ([]models
 	where.WriteString(`WHERE kind = $1`)
 	for _, term := range strings.Fields(q) {
 		args = append(args, "%"+term+"%")
-		where.WriteString(fmt.Sprintf(` AND (lib || ':' || name) ILIKE $%d`, len(args)))
+		fmt.Fprintf(&where, ` AND (lib || ':' || name) ILIKE $%d`, len(args))
 	}
 
 	rows, err := r.pool.Query(ctx, `
