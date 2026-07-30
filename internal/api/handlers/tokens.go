@@ -96,16 +96,19 @@ func (h *Handler) ListPATs(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusOK, tokens)
 }
 
-// RevokePAT revokes one of the caller's tokens by id.
-// @Summary     Revoke a personal access token
-// @Description Revoke one of the caller's tokens by id.
+// RevokePAT revokes one of the caller's tokens by id, or with ?purge=true
+// removes an already-revoked row.
+// @Summary     Revoke or delete a personal access token
+// @Description Revoke one of the caller's tokens by id. With purge=true, delete an already-revoked token's record instead, so the list can be tidied.
 // @Tags        tokens
 // @Security    BearerAuth
 // @Produce     json
-// @Param       id   path      string                  true   "token ID"
+// @Param       id     path      string  true   "token ID"
+// @Param       purge  query     bool    false  "Delete the record of an already-revoked token"
 // @Success     200  {object}  map[string]string
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
+// @Failure     409  {object}  map[string]interface{}
 // @Router      /tokens/{id}  [delete]
 func (h *Handler) RevokePAT(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
@@ -113,6 +116,26 @@ func (h *Handler) RevokePAT(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusBadRequest, "invalid token id")
 		return
 	}
+
+	// purge is a separate step rather than a second meaning for the same call:
+	// revoking is what stops a credential working, and deleting only tidies the
+	// record afterwards. Keeping them apart means a mis-click cannot cut something
+	// off and erase the evidence in one go.
+	if r.URL.Query().Get("purge") == "true" {
+		err = h.Tokens.DeletePAT(r.Context(), middleware.UserID(r.Context()), id)
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			respond.Error(w, http.StatusNotFound, "token not found")
+		case errors.Is(err, repository.ErrConflict):
+			respond.Error(w, http.StatusConflict, "revoke the token before deleting it")
+		case err != nil:
+			respond.Error(w, http.StatusInternalServerError, "could not delete token")
+		default:
+			respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+		}
+		return
+	}
+
 	err = h.Tokens.RevokePAT(r.Context(), middleware.UserID(r.Context()), id)
 	if errors.Is(err, repository.ErrNotFound) {
 		respond.Error(w, http.StatusNotFound, "token not found")

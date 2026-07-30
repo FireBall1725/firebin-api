@@ -125,3 +125,38 @@ func (r *TokenRepo) RevokePAT(ctx context.Context, userID, tokenID uuid.UUID) er
 	}
 	return nil
 }
+
+// DeletePAT removes a revoked token's row entirely, so a list of dead
+// credentials can be tidied rather than growing forever.
+//
+// Only revoked rows: deleting a live one would cut off whatever is using it with
+// no trace that it ever existed, so revoking stays a separate, deliberate first
+// step. A live row returns ErrConflict; an unknown one returns ErrNotFound.
+//
+// Safe to remove the row: authentication looks a token up by hash, so a deleted
+// row and a revoked row both fail identically. Nothing else references these
+// rows, and the hash cannot realistically be minted a second time.
+func (r *TokenRepo) DeletePAT(ctx context.Context, userID, tokenID uuid.UUID) error {
+	ct, err := r.pool.Exec(ctx,
+		`DELETE FROM api_tokens
+		 WHERE id = $1 AND user_id = $2 AND revoked_at IS NOT NULL`, tokenID, userID)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		// Nothing deleted: either it is not the caller's, does not exist, or is
+		// still live. Tell those apart so the UI can say which.
+		var revoked *time.Time
+		err := r.pool.QueryRow(ctx,
+			`SELECT revoked_at FROM api_tokens WHERE id = $1 AND user_id = $2`,
+			tokenID, userID).Scan(&revoked)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		return ErrConflict // exists and still live
+	}
+	return nil
+}

@@ -4759,13 +4759,18 @@ paths:
       - settings
   /settings/kicad-library/tokens/{id}:
     delete:
-      description: Revoke one workstation's token. Other workstations are unaffected.
+      description: Revoke one workstation's token; other workstations are unaffected.
+        With purge=true, delete an already-revoked record instead.
       parameters:
       - description: Token id
         in: path
         name: id
         required: true
         type: string
+      - description: Delete the record of an already-revoked token
+        in: query
+        name: purge
+        type: boolean
       produces:
       - application/json
       responses:
@@ -4789,9 +4794,14 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
       security:
       - BearerAuth: []
-      summary: Revoke a KiCad library token
+      summary: Revoke or delete a KiCad library token
       tags:
       - settings
   /settings/stock:
@@ -5528,13 +5538,18 @@ paths:
       - tokens
   /tokens/{id}:
     delete:
-      description: Revoke one of the caller's tokens by id.
+      description: Revoke one of the caller's tokens by id. With purge=true, delete
+        an already-revoked token's record instead, so the list can be tidied.
       parameters:
       - description: token ID
         in: path
         name: id
         required: true
         type: string
+      - description: Delete the record of an already-revoked token
+        in: query
+        name: purge
+        type: boolean
       produces:
       - application/json
       responses:
@@ -5554,9 +5569,14 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
       security:
       - BearerAuth: []
-      summary: Revoke a personal access token
+      summary: Revoke or delete a personal access token
       tags:
       - tokens
   /users:

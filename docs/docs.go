@@ -5695,14 +5695,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Revoke one workstation's token. Other workstations are unaffected.",
+                "description": "Revoke one workstation's token; other workstations are unaffected. With purge=true, delete an already-revoked record instead.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "settings"
                 ],
-                "summary": "Revoke a KiCad library token",
+                "summary": "Revoke or delete a KiCad library token",
                 "parameters": [
                     {
                         "type": "string",
@@ -5710,6 +5710,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Delete the record of an already-revoked token",
+                        "name": "purge",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5736,6 +5742,13 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -6879,14 +6892,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Revoke one of the caller's tokens by id.",
+                "description": "Revoke one of the caller's tokens by id. With purge=true, delete an already-revoked token's record instead, so the list can be tidied.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "tokens"
                 ],
-                "summary": "Revoke a personal access token",
+                "summary": "Revoke or delete a personal access token",
                 "parameters": [
                     {
                         "type": "string",
@@ -6894,6 +6907,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Delete the record of an already-revoked token",
+                        "name": "purge",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -6915,6 +6934,13 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
