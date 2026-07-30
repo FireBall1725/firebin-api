@@ -232,8 +232,11 @@ func (r *PartRepo) Get(ctx context.Context, id uuid.UUID) (*models.Part, error) 
 	return p, rows.Err()
 }
 
+// Create inserts a part. A duplicate IPN comes back as ErrConflict so the
+// handler can say what actually collided; without it the caller sees a bare
+// internal error for what is a correctable user mistake.
 func (r *PartRepo) Create(ctx context.Context, p *models.Part) error {
-	return r.pool.QueryRow(ctx, `
+	err := r.pool.QueryRow(ctx, `
 		INSERT INTO parts (category_id, variant_of, name, description, ipn, package, keywords,
 			barcode, image_path, is_template, is_component, is_assembly, is_purchaseable,
 			is_trackable, minimum_stock, default_location_id, kicad_symbol, kicad_footprint)
@@ -243,6 +246,10 @@ func (r *PartRepo) Create(ctx context.Context, p *models.Part) error {
 		p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent, p.IsAssembly, p.IsPurchaseable,
 		p.IsTrackable, p.MinimumStock, p.DefaultLocationID, p.KicadSymbol, p.KicadFootprint,
 	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+	if isUniqueViolation(err) {
+		return ErrConflict
+	}
+	return err
 }
 
 func (r *PartRepo) Update(ctx context.Context, p *models.Part) error {
@@ -256,6 +263,9 @@ func (r *PartRepo) Update(ctx context.Context, p *models.Part) error {
 		p.Keywords, p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent,
 		p.IsAssembly, p.IsPurchaseable, p.IsTrackable, p.MinimumStock,
 		p.DefaultLocationID, p.KicadSymbol, p.KicadFootprint)
+	if isUniqueViolation(err) {
+		return ErrConflict
+	}
 	if err != nil {
 		return err
 	}

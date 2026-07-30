@@ -326,9 +326,14 @@ func (r *CatalogRepo) FindPartByMPN(ctx context.Context, mpn string) (partID uui
 
 // FindPartByIPN resolves a part by its FireBin internal part number. This is the
 // highest-priority BOM match key.
+//
+// Matched case-insensitively: an IPN is Crockford base32, which is canonically
+// case-insensitive, and it arrives here from a hand-edited schematic field or a
+// typed-in code as often as from a scan. idx_parts_ipn is on upper(ipn), so this
+// is an index lookup and it agrees with what uniqueness allows.
 func (r *CatalogRepo) FindPartByIPN(ctx context.Context, ipn string) (partID uuid.UUID, name string, found bool, err error) {
 	err = r.pool.QueryRow(ctx, `
-		SELECT id, name FROM parts WHERE ipn = $1 LIMIT 1`, ipn).Scan(&partID, &name)
+		SELECT id, name FROM parts WHERE upper(ipn) = upper($1) LIMIT 1`, ipn).Scan(&partID, &name)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, "", false, nil

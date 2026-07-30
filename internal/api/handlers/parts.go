@@ -129,6 +129,10 @@ func (h *Handler) CreatePart(w http.ResponseWriter, r *http.Request) {
 	}
 	p := partFromRequest(&req)
 	if err := h.Parts.Create(r.Context(), p); err != nil {
+		if errors.Is(err, repository.ErrConflict) {
+			respond.Error(w, http.StatusConflict, "that internal part number is already in use")
+			return
+		}
 		respond.Error(w, http.StatusInternalServerError, "could not create part")
 		return
 	}
@@ -168,6 +172,10 @@ func (h *Handler) UpdatePart(w http.ResponseWriter, r *http.Request) {
 	err := h.Parts.Update(r.Context(), p)
 	if errors.Is(err, repository.ErrNotFound) {
 		respond.Error(w, http.StatusNotFound, "part not found")
+		return
+	}
+	if errors.Is(err, repository.ErrConflict) {
+		respond.Error(w, http.StatusConflict, "that internal part number is already in use")
 		return
 	}
 	if err != nil {
