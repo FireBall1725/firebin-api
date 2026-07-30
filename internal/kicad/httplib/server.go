@@ -5,7 +5,6 @@ package httplib
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -22,24 +21,38 @@ import (
 //	GET /v1/categories.json           the chooser tree
 //	GET /v1/parts/category/{id}.json  parts in one category, with full detail
 //	GET /v1/parts/{id}.json           one part
+//
+// Authentication is not done here. When this was its own service it compared a
+// single static token itself; inside the API the credentials are per-workstation
+// rows, so the check belongs in middleware.KicadAuthenticator, which also
+// answers 503 when the feature is switched off. Everything below assumes the
+// caller is already authorised, and every handler answers 200 — see
+// invariant_test.go for why that is enforced rather than merely intended.
 type Server struct {
 	cache *Cache
-	token string
 	log   *slog.Logger
 }
 
 // NewServer builds the handler set.
-func NewServer(cache *Cache, token string, log *slog.Logger) *Server {
-	return &Server{cache: cache, token: token, log: log}
+func NewServer(cache *Cache, log *slog.Logger) *Server {
+	return &Server{cache: cache, log: log}
 }
 
-// Routes registers the library endpoints on a mux. Everything under /v1 is
-// gated by the inbound token.
-func (s *Server) Routes(mux *http.ServeMux) {
-	mux.Handle("GET /v1/{$}", s.auth(http.HandlerFunc(s.handleValidate)))
-	mux.Handle("GET /v1/categories.json", s.auth(http.HandlerFunc(s.handleCategories)))
-	mux.Handle("GET /v1/parts/category/{id}", s.auth(http.HandlerFunc(s.handlePartsByCategory)))
-	mux.Handle("GET /v1/parts/{id}", s.auth(http.HandlerFunc(s.handlePart)))
+// Routes registers the library endpoints on a mux, relative to wherever it is
+// mounted. Wrap them in the KiCad authenticator.
+func (s *Server) Routes(mux *http.ServeMux, prefix string) {
+	mux.Handle("GET "+prefix+"/v1/{$}", http.HandlerFunc(s.handleValidate))
+	mux.Handle("GET "+prefix+"/v1/categories.json", http.HandlerFunc(s.handleCategories))
+	mux.Handle("GET "+prefix+"/v1/parts/category/{id}", http.HandlerFunc(s.handlePartsByCategory))
+	mux.Handle("GET "+prefix+"/v1/parts/{id}", http.HandlerFunc(s.handlePart))
+}
+
+// Handler returns the four routes as a standalone handler, for mounting behind
+// middleware.
+func (s *Server) Handler(prefix string) http.Handler {
+	mux := http.NewServeMux()
+	s.Routes(mux, prefix)
+	return mux
 }
 
 // handleValidate answers the endpoint check. KiCad verifies only that both
@@ -49,11 +62,7 @@ func (s *Server) handleValidate(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleCategories(w http.ResponseWriter, r *http.Request) {
-	snap, err := s.cache.Get(r.Context())
-	if err != nil {
-		s.fail(w, "listing categories", err)
-		return
-	}
+	snap := s.cache.Get(r.Context())
 	// Always an array, never null: KiCad's parser expects a JSON array here.
 	out := snap.Categories
 	if out == nil {
@@ -72,11 +81,7 @@ func (s *Server) handleCategories(w http.ResponseWriter, r *http.Request) {
 // and collapses N+1 requests into one.
 func (s *Server) handlePartsByCategory(w http.ResponseWriter, r *http.Request) {
 	id := trimJSON(r.PathValue("id"))
-	snap, err := s.cache.Get(r.Context())
-	if err != nil {
-		s.fail(w, "listing parts", err)
-		return
-	}
+	snap := s.cache.Get(r.Context())
 	parts, ok := snap.ByCategory[id]
 	if !ok {
 		// An unknown category is an empty list, not a 404: KiCad discards the
@@ -90,11 +95,7 @@ func (s *Server) handlePartsByCategory(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handlePart(w http.ResponseWriter, r *http.Request) {
 	id := trimJSON(r.PathValue("id"))
-	snap, err := s.cache.Get(r.Context())
-	if err != nil {
-		s.fail(w, "reading part", err)
-		return
-	}
+	snap := s.cache.Get(r.Context())
 	part, ok := snap.ByID[id]
 	if !ok {
 		// 200 with a placeholder, not 404.
@@ -114,32 +115,6 @@ func (s *Server) handlePart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, part)
-}
-
-// auth enforces `Authorization: Token <token>`, which is the only scheme KiCad
-// speaks — note it is not Bearer, and not the scheme FireBin's own API uses.
-// The comparison is constant-time so a response cannot be timed to recover the
-// token byte by byte.
-func (s *Server) auth(next http.Handler) http.Handler {
-	want := []byte(s.token)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := []byte(strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Token ")))
-		if len(got) == 0 || subtle.ConstantTimeCompare(got, want) != 1 {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "missing or invalid authorization header",
-			})
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// fail logs the cause and returns a generic 502. The detail stays in the logs:
-// KiCad surfaces almost none of it, and behind an ingress that rewrites error
-// bodies the client would not see it anyway.
-func (s *Server) fail(w http.ResponseWriter, what string, err error) {
-	s.log.Error("upstream failure", "op", what, "error", err)
-	writeJSON(w, http.StatusBadGateway, map[string]string{"error": "upstream FireBin API unavailable"})
 }
 
 // trimJSON strips the ".json" suffix KiCad appends to every resource path.

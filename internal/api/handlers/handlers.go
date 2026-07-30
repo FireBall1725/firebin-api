@@ -6,11 +6,13 @@ package handlers
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/firelabsca/firebin-api/internal/auth"
 	"github.com/firelabsca/firebin-api/internal/config"
 	"github.com/firelabsca/firebin-api/internal/events"
 	"github.com/firelabsca/firebin-api/internal/jobs"
+	"github.com/firelabsca/firebin-api/internal/kicad/httplib"
 	"github.com/firelabsca/firebin-api/internal/providers"
 	"github.com/firelabsca/firebin-api/internal/providers/digikey"
 	"github.com/firelabsca/firebin-api/internal/providers/mouser"
@@ -41,6 +43,13 @@ type Handler struct {
 	Backup         *repository.BackupRepo
 	KicadLib       *repository.KicadLibraryRepo
 	Bus            *events.Broker
+
+	// The KiCad HTTP library: per-workstation credentials, the catalogue snapshot
+	// it is served from, and the handler set. The cache is exposed so main can
+	// warm it and run its refresh ticker.
+	KicadHTTPTokens *repository.KicadLibraryTokenRepo
+	KicadHTTPCache  *httplib.Cache
+	KicadHTTP       *httplib.Server
 
 	// Enrichers are the MPN-lookup providers, tried in order (Digi-Key first,
 	// then Nexar). EnricherBy indexes them by provider id for settings/test.
@@ -144,7 +153,28 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 		Bus:            events.NewBroker(),
 		Enrichers:      enrichers,
 		EnricherBy:     enricherBy,
+
+		KicadHTTPTokens: repository.NewKicadLibraryTokenRepo(pool),
 	}
+
+	// The KiCad library server. The snapshot is built off the request path: a
+	// rebuild is one detail composition per part, and the HTTP server's 15s
+	// WriteTimeout would truncate a response that tried to do it inline.
+	//
+	// Built unconditionally even though the feature ships disabled, because the
+	// toggle is read per request and flipping it in Settings has to work without a
+	// restart. The snapshot is therefore warmed and refreshed on every instance,
+	// enabled or not, which costs one catalogue read every five minutes and buys a
+	// library that is already populated the moment someone turns it on. Nothing is
+	// served until the middleware sees it enabled.
+	kicadLog := slog.Default().With("component", "kicad-library")
+	h.KicadHTTPCache = httplib.NewCache(
+		kicadSource{categories: h.Categories, parts: h.Parts, catalog: h.Catalog},
+		kicadUnmappedMarker,
+		kicadSnapshotTTL,
+		kicadLog,
+	)
+	h.KicadHTTP = httplib.NewServer(h.KicadHTTPCache, kicadLog)
 
 	// Wire the job service: register workers (which reference h), then build the
 	// River client. Not started here; main owns the lifecycle.

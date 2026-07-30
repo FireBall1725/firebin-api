@@ -82,7 +82,11 @@ func NewCache(src Source, marker string, ttl time.Duration, log *slog.Logger) *C
 // A missing snapshot yields an empty but structurally valid one rather than an
 // error, because KiCad discards the whole library on any non-200. An empty
 // chooser that fills in a moment beats a library that vanished.
-func (c *Cache) Get(_ context.Context) (*Snapshot, error) {
+// It returns no error, deliberately. There is nothing a caller could do with one
+// except turn it into a non-200, and that would empty the user's library. The
+// absence of an error in this signature is what makes that impossible rather
+// than merely discouraged.
+func (c *Cache) Get(_ context.Context) *Snapshot {
 	c.mu.RLock()
 	snap := c.snap
 	c.mu.RUnlock()
@@ -91,9 +95,9 @@ func (c *Cache) Get(_ context.Context) (*Snapshot, error) {
 		return &Snapshot{
 			ByCategory: map[string][]Part{},
 			ByID:       map[string]Part{},
-		}, nil
+		}
 	}
-	return snap, nil
+	return snap
 }
 
 // Marker is the prefix put on the name of a part KiCad cannot resolve, so the

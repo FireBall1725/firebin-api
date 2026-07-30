@@ -40,6 +40,26 @@ func NewRouter(h *handlers.Handler) http.Handler {
 		mux.Handle(pattern, authn.RequireAdmin(fn))
 	}
 
+	// ── KiCad HTTP library ──────────────────────────────────────────────────
+	// A third auth scheme, for one specific third-party client. KiCad sends
+	// `Authorization: Token <t>` rather than Bearer, and the credentials are
+	// per-workstation rows in their own table, so these routes accept nothing
+	// that works anywhere else on this API and serve nothing but reads.
+	//
+	// Not under /api/v1: KiCad appends its own version segment, and /api/v1/kicad
+	// already belongs to the library-index endpoints below. Still under /api,
+	// because that is what firebin-web's nginx proxies here — at the top level the
+	// SPA fallback would answer with a 200 and an HTML body, which KiCad would try
+	// to parse as JSON.
+	//
+	// Every handler behind this answers 200, deliberately: KiCad discards the
+	// whole library on any non-200. The two sanctioned exceptions, 503 when the
+	// feature is off and 401 for a bad credential, are decided by this
+	// middleware before the handlers run.
+	kicadAuthn := middleware.NewKicadAuthenticator(h.KicadHTTPTokens, h.KicadLibraryEnabled)
+	mux.Handle(handlers.KicadLibRoutePrefix+"/",
+		kicadAuthn.Require(h.KicadHTTP.Handler(handlers.KicadLibRoutePrefix)))
+
 	protected("GET /api/v1/me", h.Me)
 	protected("PATCH /api/v1/users/me/password", h.ChangeMyPassword)
 
@@ -155,6 +175,15 @@ func NewRouter(h *handlers.Handler) http.Handler {
 	admin("GET /api/v1/settings/enrichment", h.GetEnrichmentSettings)
 	admin("PUT /api/v1/settings/enrichment", h.UpdateEnrichmentSettings)
 	admin("POST /api/v1/settings/enrichment/test", h.TestEnrichment)
+
+	// Admin-only throughout, matching the other instance-level settings. A member
+	// must not be able to mint a workstation credential for a feature they cannot
+	// see the switch for.
+	admin("GET /api/v1/settings/kicad-library", h.GetKicadLibrarySettings)
+	admin("PUT /api/v1/settings/kicad-library", h.UpdateKicadLibrarySettings)
+	admin("GET /api/v1/settings/kicad-library/tokens", h.ListKicadLibraryTokens)
+	admin("POST /api/v1/settings/kicad-library/tokens", h.CreateKicadLibraryToken)
+	admin("DELETE /api/v1/settings/kicad-library/tokens/{id}", h.RevokeKicadLibraryToken)
 
 	// Stock settings (admin) — opt-in empty-lot cleanup (default off).
 	admin("GET /api/v1/settings/stock", h.GetStockSettings)

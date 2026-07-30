@@ -66,12 +66,12 @@ func defaultStub() stubSource {
 func newTestServerFrom(t *testing.T, src Source) http.Handler {
 	t.Helper()
 	cache := NewCache(src, "(no symbol) ", time.Minute, slog.New(slog.DiscardHandler))
-	lib := NewServer(cache, testToken, slog.New(slog.DiscardHandler))
+	lib := NewServer(cache, slog.New(slog.DiscardHandler))
 	if err := lib.WarmUp(t.Context()); err != nil {
 		t.Fatalf("warm up: %v", err)
 	}
 	mux := http.NewServeMux()
-	lib.Routes(mux)
+	lib.Routes(mux, "")
 	return mux
 }
 
@@ -105,25 +105,6 @@ func TestValidationEndpoint(t *testing.T) {
 	for _, k := range []string{"categories", "parts"} {
 		if _, ok := body[k]; !ok {
 			t.Errorf("validation response missing key %q", k)
-		}
-	}
-}
-
-// TestAuthSchemeIsTokenNotBearer pins the scheme. KiCad sends "Token <t>";
-// FireBin's own API uses "Bearer". Accepting the wrong one here would work in
-// curl and fail in KiCad.
-func TestAuthSchemeIsTokenNotBearer(t *testing.T) {
-	h := newTestServer(t)
-	if rec := do(t, h, "/v1/categories.json", "Token "+testToken); rec.Code != http.StatusOK {
-		t.Errorf("Token scheme: status = %d, want 200", rec.Code)
-	}
-	for name, header := range map[string]string{
-		"bearer scheme": "Bearer " + testToken,
-		"wrong token":   "Token nope",
-		"absent":        "",
-	} {
-		if rec := do(t, h, "/v1/categories.json", header); rec.Code != http.StatusUnauthorized {
-			t.Errorf("%s: status = %d, want 401", name, rec.Code)
 		}
 	}
 }

@@ -48,6 +48,36 @@ type ListOptions struct {
 	TopLevel   bool // only parts with no parent (templates + standalone parts)
 }
 
+// ListIdentities returns every part's id and category, with no limit and no
+// joins. Both other fields on the returned rows are zero.
+//
+// This exists because List caps at 500 with no pagination, which is fine for a
+// screenful but wrong for anything that has to see the whole catalogue — the
+// KiCad library snapshot would otherwise silently serve a truncated library.
+// Kept as its own method rather than adding a limit option to ListOptions, so
+// the cap that the parts list depends on is not made adjustable from a distance.
+//
+// Deliberately minimal: callers that need detail follow up per part, and
+// selecting stock sums and primary-MPN laterals here would compute a great deal
+// of data only to discard it.
+func (r *PartRepo) ListIdentities(ctx context.Context) ([]models.Part, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id, category_id FROM parts ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []models.Part{}
+	for rows.Next() {
+		var p models.Part
+		if err := rows.Scan(&p.ID, &p.CategoryID); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // List returns parts matching the options, each annotated with total stock and
 // (for templates) a variant count. Uses a correlated subquery for the stock
 // sum so parts with no stock still appear.

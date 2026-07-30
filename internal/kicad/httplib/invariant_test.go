@@ -88,10 +88,10 @@ func TestReadsAreAlways200(t *testing.T) {
 			// Built without WarmUp for the erroring and empty sources, so the
 			// cold-snapshot path is covered too.
 			cache := NewCache(tc.src, "(no symbol) ", time.Minute, slog.New(slog.DiscardHandler))
-			lib := NewServer(cache, testToken, slog.New(slog.DiscardHandler))
+			lib := NewServer(cache, slog.New(slog.DiscardHandler))
 			_ = lib.WarmUp(t.Context()) // may fail; that is one of the cases
 			mux := http.NewServeMux()
-			lib.Routes(mux)
+			lib.Routes(mux, "")
 
 			for _, p := range paths {
 				rec := do(t, mux, p, "Token "+testToken)
