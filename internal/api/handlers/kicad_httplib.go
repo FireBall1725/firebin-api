@@ -5,10 +5,10 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -238,7 +238,14 @@ func (h *Handler) CreateKicadLibraryToken(w http.ResponseWriter, r *http.Request
 		"token":      raw,
 		"meta":       rec,
 		"route_path": KicadLibRoutePrefix,
-		"config":     kicadHTTPLibConfig(rootURL, raw),
+		// The finished file as text, for the client to write byte for byte.
+		//
+		// Not a JSON object. Handing over structure and letting the browser
+		// re-serialise it loses meta.version: it decodes to a JavaScript number
+		// and comes back out as 1 rather than 1.0, because JavaScript cannot tell
+		// the two apart. Rendering here is the only way the bytes KiCad receives
+		// are the bytes this code intended.
+		"config_file": kicadHTTPLibFile(rootURL, raw),
 	})
 }
 
@@ -253,25 +260,30 @@ func (h *Handler) CreateKicadLibraryToken(w http.ResponseWriter, r *http.Request
 // parts-per-category cache rather than the category list, because nginx caps the
 // request at proxy_read_timeout 300s and a larger number here would be a promise
 // nothing can keep.
-func kicadHTTPLibConfig(rootURL, token string) map[string]any {
-	return map[string]any{
-		// Emitted as raw JSON so it serialises as 1.0 rather than 1. Go renders
-		// float64(1.0) as "1", and while both are valid JSON numbers, this is the
-		// field that gates whether KiCad accepts the library at all. Matching the
-		// byte sequence that is known to work is free; finding out that it does not
-		// costs a debugging session against a client that reports nothing.
-		"meta":        map[string]any{"version": json.RawMessage("1.0")},
-		"name":        "FireBin",
-		"description": "Parts in FireBin inventory",
-		"source": map[string]any{
-			"type":                       "REST_API",
-			"api_version":                "v1",
-			"root_url":                   rootURL,
-			"token":                      token,
-			"timeout_parts_seconds":      60,
-			"timeout_categories_seconds": 240,
-		},
-	}
+// Written as a template rather than marshalled from a map for two reasons:
+// meta.version has to read 1.0 and Go renders float64(1.0) as "1", and key order
+// is preserved, which makes the file legible to whoever opens it next.
+//
+// Both string values interpolated here are constrained: root_url is validated on
+// save and the token is generated base64url, so neither can carry a quote or a
+// backslash that would break the JSON.
+func kicadHTTPLibFile(rootURL, token string) string {
+	return `{
+  "meta": {
+    "version": 1.0
+  },
+  "name": "FireBin",
+  "description": "Parts in FireBin inventory",
+  "source": {
+    "type": "REST_API",
+    "api_version": "v1",
+    "root_url": ` + strconv.Quote(rootURL) + `,
+    "token": ` + strconv.Quote(token) + `,
+    "timeout_parts_seconds": 60,
+    "timeout_categories_seconds": 240
+  }
+}
+`
 }
 
 // RevokeKicadLibraryToken cuts off one workstation.
