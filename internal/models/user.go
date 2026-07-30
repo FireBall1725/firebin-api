@@ -34,3 +34,19 @@ type APIToken struct {
 	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 }
+
+// KicadLibraryToken is a credential issued to one KiCad workstation. As with a
+// PAT the raw value is never stored, so a lost .kicad_httplib means issuing a
+// replacement rather than recovering the old one.
+//
+// Name is the device it was issued for, which is the whole point: it is what
+// makes revoking one machine possible without disturbing the others.
+type KicadLibraryToken struct {
+	ID          uuid.UUID  `json:"id"`
+	Name        string     `json:"name"`
+	TokenSuffix string     `json:"token_suffix"`
+	CreatedBy   *uuid.UUID `json:"created_by,omitempty"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}

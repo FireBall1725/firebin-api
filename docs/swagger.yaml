@@ -3897,6 +3897,181 @@ paths:
       summary: Test enrichment provider
       tags:
       - settings
+  /settings/kicad-library:
+    get:
+      description: Whether the KiCad HTTP library is enabled, and the root URL written
+        into generated .kicad_httplib files.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get KiCad library server settings
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: Enable or disable the KiCad HTTP library and set the root URL used
+        in generated config files.
+      parameters:
+      - description: request body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update KiCad library server settings
+      tags:
+      - settings
+  /settings/kicad-library/tokens:
+    get:
+      description: List the per-workstation tokens issued for the KiCad HTTP library.
+        Secrets are never returned.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List KiCad library tokens
+      tags:
+      - settings
+    post:
+      consumes:
+      - application/json
+      description: Issue a token for one KiCad workstation and return it with a ready-made
+        .kicad_httplib body. The secret is shown once.
+      parameters:
+      - description: request body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a KiCad library token
+      tags:
+      - settings
+  /settings/kicad-library/tokens/{id}:
+    delete:
+      description: Revoke one workstation's token. Other workstations are unaffected.
+      parameters:
+      - description: Token id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Revoke a KiCad library token
+      tags:
+      - settings
   /settings/stock:
     get:
       description: Return the empty-lot cleanup toggle and the current count of purgeable

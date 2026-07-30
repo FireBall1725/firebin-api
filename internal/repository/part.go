@@ -48,6 +48,36 @@ type ListOptions struct {
 	TopLevel   bool // only parts with no parent (templates + standalone parts)
 }
 
+// ListIdentities returns every part's id and category, with no limit and no
+// joins. Both other fields on the returned rows are zero.
+//
+// This exists because List caps at 500 with no pagination, which is fine for a
+// screenful but wrong for anything that has to see the whole catalogue — the
+// KiCad library snapshot would otherwise silently serve a truncated library.
+// Kept as its own method rather than adding a limit option to ListOptions, so
+// the cap that the parts list depends on is not made adjustable from a distance.
+//
+// Deliberately minimal: callers that need detail follow up per part, and
+// selecting stock sums and primary-MPN laterals here would compute a great deal
+// of data only to discard it.
+func (r *PartRepo) ListIdentities(ctx context.Context) ([]models.Part, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id, category_id FROM parts ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []models.Part{}
+	for rows.Next() {
+		var p models.Part
+		if err := rows.Scan(&p.ID, &p.CategoryID); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
 // List returns parts matching the options, each annotated with total stock and
 // (for templates) a variant count. Uses a correlated subquery for the stock
 // sum so parts with no stock still appear.
@@ -232,8 +262,11 @@ func (r *PartRepo) Get(ctx context.Context, id uuid.UUID) (*models.Part, error) 
 	return p, rows.Err()
 }
 
+// Create inserts a part. A duplicate IPN comes back as ErrConflict so the
+// handler can say what actually collided; without it the caller sees a bare
+// internal error for what is a correctable user mistake.
 func (r *PartRepo) Create(ctx context.Context, p *models.Part) error {
-	return r.pool.QueryRow(ctx, `
+	err := r.pool.QueryRow(ctx, `
 		INSERT INTO parts (category_id, variant_of, name, description, ipn, package, keywords,
 			barcode, image_path, is_template, is_component, is_assembly, is_purchaseable,
 			is_trackable, minimum_stock, default_location_id, kicad_symbol, kicad_footprint)
@@ -243,6 +276,10 @@ func (r *PartRepo) Create(ctx context.Context, p *models.Part) error {
 		p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent, p.IsAssembly, p.IsPurchaseable,
 		p.IsTrackable, p.MinimumStock, p.DefaultLocationID, p.KicadSymbol, p.KicadFootprint,
 	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
+	if isUniqueViolation(err) {
+		return ErrConflict
+	}
+	return err
 }
 
 func (r *PartRepo) Update(ctx context.Context, p *models.Part) error {
@@ -256,6 +293,9 @@ func (r *PartRepo) Update(ctx context.Context, p *models.Part) error {
 		p.Keywords, p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent,
 		p.IsAssembly, p.IsPurchaseable, p.IsTrackable, p.MinimumStock,
 		p.DefaultLocationID, p.KicadSymbol, p.KicadFootprint)
+	if isUniqueViolation(err) {
+		return ErrConflict
+	}
 	if err != nil {
 		return err
 	}

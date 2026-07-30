@@ -95,6 +95,18 @@ func main() {
 	}
 	slog.Info("job workers started")
 
+	// Build the KiCad catalogue snapshot in the background and keep it warm.
+	//
+	// Off the request path on purpose. A rebuild composes each part's detail
+	// individually, which can outlast the 15s WriteTimeout below, and a response
+	// cut off mid-JSON is reported by KiCad as a parse failure rather than a
+	// timeout. Not blocking startup either: this feature ships disabled, so
+	// gating the whole API on warming a catalogue nobody has asked for would be
+	// backwards. Until the first snapshot lands the library serves an empty but
+	// valid shape.
+	go h.KicadHTTPCache.WarmUp(baseCtx)
+	go h.KicadHTTPCache.Start(baseCtx)
+
 	addr := cfg.Host + ":" + cfg.Port
 	srv := &http.Server{
 		Addr:           addr,

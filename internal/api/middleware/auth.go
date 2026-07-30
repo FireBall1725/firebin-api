@@ -50,6 +50,15 @@ func (a *Authenticator) Require(next http.Handler) http.Handler {
 			scopes []string
 		)
 
+		// A KiCad workstation token is rejected here explicitly rather than
+		// being left to fail JWT validation by luck. It is accepted only by the
+		// KiCad library routes, under the Token scheme, and that boundary is
+		// what makes it read-only by construction.
+		if auth.IsKicadToken(raw) {
+			respond.Error(w, http.StatusUnauthorized, "kicad library tokens are not valid here")
+			return
+		}
+
 		if auth.IsPAT(raw) {
 			uid, sc, err := a.tokens.LookupPAT(r.Context(), auth.HashToken(raw))
 			if err != nil {
