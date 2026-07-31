@@ -248,6 +248,13 @@ func mapPart(p msPart, currency string) *models.EnrichedPart {
 		SKU:  p.MouserPartNumber,
 		URL:  p.ProductDetailURL,
 	}
+	// Min is Mouser's minimum order quantity, and like its prices it arrives as
+	// a display string rather than a number. It has always been parsed off the
+	// wire and never read, which is part of why supplier_parts.moq is empty for
+	// every row.
+	if moq, ok := parseQuantity(p.Min); ok {
+		sup.MOQ = &moq
+	}
 	for _, b := range p.PriceBreaks {
 		price, ok := parsePrice(b.Price)
 		if !ok {
@@ -315,6 +322,25 @@ func parsePrice(s string) (float64, bool) {
 
 	v, err := strconv.ParseFloat(t, 64)
 	if err != nil {
+		return 0, false
+	}
+	return v, true
+}
+
+// parseQuantity turns a Mouser quantity string into a number.
+//
+// Separate from parsePrice: that one strips currency symbols and copes with
+// locale-swapped separators, which is the wrong set of rules for a count. A
+// quantity is plainer, but it can still arrive thousands-separated ("1,000"),
+// so commas and spaces come out before parsing.
+func parseQuantity(s string) (float64, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, false
+	}
+	s = strings.NewReplacer(",", "", " ", "", "\u00a0", "").Replace(s)
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil || v <= 0 {
 		return 0, false
 	}
 	return v, true

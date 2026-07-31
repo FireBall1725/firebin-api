@@ -305,6 +305,12 @@ func mapPart(p nexarPart) *models.EnrichedPart {
 				continue
 			}
 			sup := models.EnrichedSupplier{Name: sel.Company.Name, SKU: off.SKU}
+			// The query has always asked for moq and the field has always been
+			// parsed; nothing read it, so the column stayed empty.
+			if off.MOQ > 0 {
+				moq := float64(off.MOQ)
+				sup.MOQ = &moq
+			}
 			for _, pr := range off.Prices {
 				sup.Prices = append(sup.Prices, models.PriceBreak{
 					Quantity: float64(pr.Quantity),

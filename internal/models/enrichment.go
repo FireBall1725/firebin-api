@@ -34,9 +34,13 @@ type EnrichedParameter struct {
 }
 
 type EnrichedSupplier struct {
-	Name      string       `json:"name"`
-	SKU       string       `json:"sku"`
-	URL       string       `json:"url,omitempty"`       // the vendor's product page
-	Packaging string       `json:"packaging,omitempty"` // e.g. "Cut Tape (CT)", "Tape & Reel (TR)"
-	Prices    []PriceBreak `json:"prices"`
+	Name      string `json:"name"`
+	SKU       string `json:"sku"`
+	URL       string `json:"url,omitempty"`       // the vendor's product page
+	Packaging string `json:"packaging,omitempty"` // e.g. "Cut Tape (CT)", "Tape & Reel (TR)"
+	// MOQ is the vendor's minimum order quantity. A pointer because "not
+	// reported" and "no minimum" are different answers, and only some providers
+	// tell us.
+	MOQ    *float64     `json:"moq,omitempty"`
+	Prices []PriceBreak `json:"prices"`
 }
