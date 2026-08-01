@@ -232,7 +232,46 @@ type Stats struct {
 	LocationsCount int     `json:"locations_count"`
 	LowStockCount  int     `json:"low_stock_count"`
 	TotalUnits     float64 `json:"total_units"`
-	InventoryValue float64 `json:"inventory_value"`
+
+	// NotStockedCount is parts recorded but never owned. Shown beside the
+	// low-stock count rather than folded into it: they are both things to buy,
+	// and they are not the same kind of thing.
+	NotStockedCount int `json:"not_stocked_count"`
+	// UnmatchedBOMLines is lines that resolve to no inventory part. The pick
+	// list skips them without saying so, so a board can read as buildable while
+	// these were never checked. That silence is why this is on the dashboard.
+	UnmatchedBOMLines int `json:"unmatched_bom_lines"`
+	// PartsWithoutSymbol is catalogue parts with no KiCad symbol mapped.
+	PartsWithoutSymbol int `json:"parts_without_symbol"`
+	// Moves30d counts stock movements in the last 30 days. A flat week usually
+	// means a delivery is sitting unlogged rather than that nothing happened.
+	Moves30d int         `json:"moves_30d"`
+	Movement []DayCount  `json:"movement"`
+	Boards   []BoardFill `json:"boards"`
+}
+
+// DayCount is one day of the movement sparkline. Days with no movement are
+// present with a zero rather than absent, so the series is evenly spaced and
+// the gap is visible.
+type DayCount struct {
+	Day   string `json:"day"`
+	Count int    `json:"count"`
+}
+
+// BoardFill is how close one board is to buildable, for one of each.
+//
+// Quantity is deliberately fixed at one. "Buildable once" and "buildable five
+// times" are different answers and a dashboard tile has to pick one; the board
+// page is where a run size gets asked for.
+type BoardFill struct {
+	BoardID   uuid.UUID `json:"board_id"`
+	ProjectID uuid.UUID `json:"project_id"`
+	Name      string    `json:"name"`
+	Lines     int       `json:"lines"`
+	// Short is distinct matched parts with less stock than the board needs.
+	Short int `json:"short"`
+	// Unmatched is lines with no part at all, which Short cannot see.
+	Unmatched int `json:"unmatched"`
 }
 
 // ─── Assistant conversations ────────────────────────────────────────────────

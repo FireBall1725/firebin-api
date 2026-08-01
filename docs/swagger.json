@@ -7546,6 +7546,31 @@
                 }
             }
         },
+        "github_com_firelabsca_firebin-api_internal_models.BoardFill": {
+            "type": "object",
+            "properties": {
+                "board_id": {
+                    "type": "string"
+                },
+                "lines": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "project_id": {
+                    "type": "string"
+                },
+                "short": {
+                    "description": "Short is distinct matched parts with less stock than the board needs.",
+                    "type": "integer"
+                },
+                "unmatched": {
+                    "description": "Unmatched is lines with no part at all, which Short cannot see.",
+                    "type": "integer"
+                }
+            }
+        },
         "github_com_firelabsca_firebin-api_internal_models.Category": {
             "type": "object",
             "properties": {
@@ -7634,6 +7659,17 @@
                     "items": {
                         "type": "integer"
                     }
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.DayCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "day": {
+                    "type": "string"
                 }
             }
         },
@@ -8419,8 +8455,11 @@
         "github_com_firelabsca_firebin-api_internal_models.Stats": {
             "type": "object",
             "properties": {
-                "inventory_value": {
-                    "type": "number"
+                "boards": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.BoardFill"
+                    }
                 },
                 "locations_count": {
                     "type": "integer"
@@ -8428,11 +8467,33 @@
                 "low_stock_count": {
                     "type": "integer"
                 },
+                "movement": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.DayCount"
+                    }
+                },
+                "moves_30d": {
+                    "description": "Moves30d counts stock movements in the last 30 days. A flat week usually\nmeans a delivery is sitting unlogged rather than that nothing happened.",
+                    "type": "integer"
+                },
+                "not_stocked_count": {
+                    "description": "NotStockedCount is parts recorded but never owned. Shown beside the\nlow-stock count rather than folded into it: they are both things to buy,\nand they are not the same kind of thing.",
+                    "type": "integer"
+                },
                 "parts_count": {
+                    "type": "integer"
+                },
+                "parts_without_symbol": {
+                    "description": "PartsWithoutSymbol is catalogue parts with no KiCad symbol mapped.",
                     "type": "integer"
                 },
                 "total_units": {
                     "type": "number"
+                },
+                "unmatched_bom_lines": {
+                    "description": "UnmatchedBOMLines is lines that resolve to no inventory part. The pick\nlist skips them without saying so, so a board can read as buildable while\nthese were never checked. That silence is why this is on the dashboard.",
+                    "type": "integer"
                 },
                 "variants_count": {
                     "type": "integer"
