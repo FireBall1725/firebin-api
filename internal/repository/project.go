@@ -307,7 +307,7 @@ func (r *ProjectRepo) GetBOMLine(ctx context.Context, id uuid.UUID) (*models.BOM
 		       l.manufacturer, l.supplier_sku, l.ipn, l.description, l.part_id, COALESCE(p.name, ''), l.match_kind, l.position
 		FROM board_bom_lines l LEFT JOIN parts p ON p.id = l.part_id
 		WHERE l.id = $1`, id).
-		Scan(&l.ID, &l.BoardID, &l.Refs, &l.Quantity, &l.Value, &l.Footprint, &l.MPN,
+		Scan(&l.ID, &l.BoardID, &l.Refs, &l.Quantity, &l.Value, &l.Footprint, &l.LibID, &l.MPN,
 			&l.Manufacturer, &l.SupplierSKU, &l.IPN, &l.Description, &l.PartID, &l.PartName, &l.MatchKind, &l.Position)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
