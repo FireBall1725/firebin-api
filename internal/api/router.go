@@ -102,7 +102,11 @@ func NewRouter(h *handlers.Handler) http.Handler {
 	protected("GET /api/v1/kicad/libraries/usage", h.ListKicadUsage)
 	admin("POST /api/v1/kicad/libraries/batch", h.UploadKicadLibraryBatch)
 	admin("POST /api/v1/kicad/libraries/finish", h.FinishKicadLibraryScan)
+	// Renaming and deleting change what every workstation resolves against.
+	admin("POST /api/v1/kicad/libraries/rename", h.RenameKicadLibrary)
+	admin("DELETE /api/v1/kicad/libraries", h.DeleteKicadLibraryItems)
 	protected("GET /api/v1/parts", h.ListParts)
+	protected("GET /api/v1/parts/search", h.SearchParts)
 	protected("POST /api/v1/parts", h.CreatePart)
 	protected("POST /api/v1/parts/bulk/move", h.BulkMoveParts)
 	protected("POST /api/v1/parts/bulk/enrich", h.BulkEnrichParts)
@@ -186,6 +190,28 @@ func NewRouter(h *handlers.Handler) http.Handler {
 	admin("DELETE /api/v1/settings/kicad-library/tokens/{id}", h.RevokeKicadLibraryToken)
 
 	// Stock settings (admin) — opt-in empty-lot cleanup (default off).
+	// Asking the assistant is a write in the sense that matters: it spends
+	// money and can create a reference part, so viewers are refused.
+	// Readable by any signed-in user: the web app hides the assistant entirely
+	// when it is off, and that decision cannot need admin rights.
+	protected("GET /api/v1/assistant/status", h.AssistantStatus)
+	protected("POST /api/v1/assistant/ask", h.AskAssistant)
+	protected("POST /api/v1/assistant/messages", h.SendMessage)
+	protected("POST /api/v1/assistant/messages/stream", h.StreamMessage)
+	// Conversations are scoped to the caller inside the repository, so these
+	// need no extra check here: another user's id simply returns nothing.
+	protected("GET /api/v1/assistant/conversations", h.ListConversations)
+	protected("GET /api/v1/assistant/conversations/{id}", h.GetConversation)
+	protected("DELETE /api/v1/assistant/conversations/{id}", h.DeleteConversation)
+	protected("GET /api/v1/assistant/usage", h.AssistantUsage)
+
+	// The assistant. Admin-only: these routes hand out provider configuration
+	// and spend real money on a test call.
+	admin("GET /api/v1/settings/ai", h.GetAISettings)
+	admin("PUT /api/v1/settings/ai", h.UpdateAISettings)
+	admin("POST /api/v1/settings/ai/{name}/test", h.TestAIProvider)
+	admin("GET /api/v1/settings/ai/{name}/models", h.ListAIModels)
+
 	admin("GET /api/v1/settings/stock", h.GetStockSettings)
 	admin("PUT /api/v1/settings/stock", h.UpdateStockSettings)
 	admin("POST /api/v1/stock/cleanup-empty", h.CleanupEmptyLots)

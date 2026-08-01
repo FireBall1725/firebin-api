@@ -8,6 +8,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/firelabsca/firebin-api/internal/ai"
 	"github.com/firelabsca/firebin-api/internal/auth"
 	"github.com/firelabsca/firebin-api/internal/config"
 	"github.com/firelabsca/firebin-api/internal/events"
@@ -58,12 +59,30 @@ type Handler struct {
 
 	// Jobs is the background job service (River). Started and stopped by main.
 	Jobs *jobs.Service
+
+	// Assistant stores conversations, their messages, and what each turn cost.
+	Assistant *repository.AssistantRepo
+
+	// AI owns the chat providers and their configuration. Nil is a valid state
+	// and means the assistant is not available on this instance; every AI
+	// handler checks for it rather than assuming.
+	AI *ai.Service
 }
 
 // New builds the handler and all its repositories from the connection pool, and
 // wires the background job service (workers registered, not yet started).
 func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler, error) {
 	settings := repository.NewSettingsRepo(pool)
+
+	// Chat providers. Registration order is the order the settings page lists
+	// them: the two hosted ones first, then the two that run on your own
+	// hardware. None is active until an admin picks one.
+	aiRegistry := ai.NewRegistry()
+	aiRegistry.Register(ai.NewAnthropicProvider())
+	aiRegistry.Register(ai.NewOpenAIProvider())
+	aiRegistry.Register(ai.NewOllamaProvider())
+	aiRegistry.Register(ai.NewOsaurusProvider())
+	aiService := ai.NewService(aiRegistry, settings, repository.ErrNotFound)
 
 	// Enrichment credentials resolve fresh per call: DB settings first (entered
 	// in the UI), then env fallback — so the user can add keys without a restart.
@@ -153,6 +172,8 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 		Bus:            events.NewBroker(),
 		Enrichers:      enrichers,
 		EnricherBy:     enricherBy,
+		AI:             aiService,
+		Assistant:      repository.NewAssistantRepo(pool),
 
 		KicadHTTPTokens: repository.NewKicadLibraryTokenRepo(pool),
 	}

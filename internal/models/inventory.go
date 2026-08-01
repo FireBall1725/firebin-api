@@ -4,6 +4,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,6 +28,14 @@ type PartParameter struct {
 	Value        string    `json:"value"`
 }
 
+// PartMatch is a part returned by a parametric search, carrying the parameters
+// that satisfied the query. Matched is a subset of Parameters, so a caller can
+// show why a part came back without a second request per candidate.
+type PartMatch struct {
+	Part
+	Matched []PartParameter `json:"matched_parameters"`
+}
+
 // ParameterTemplate is a reusable parameter name (+ default units). The web
 // client lists these to power name-typeahead so users reuse "Voltage Rating"
 // instead of coining "Voltage rating", "Volt Rating", etc.
@@ -37,23 +46,29 @@ type ParameterTemplate struct {
 }
 
 type Part struct {
-	ID                uuid.UUID  `json:"id"`
-	CategoryID        *uuid.UUID `json:"category_id,omitempty"`
-	VariantOf         *uuid.UUID `json:"variant_of,omitempty"`
-	Name              string     `json:"name"`
-	Description       *string    `json:"description,omitempty"`
-	IPN               *string    `json:"ipn,omitempty"` // FireBin internal part number
-	Package           *string    `json:"package,omitempty"`
-	KicadSymbol       *string    `json:"kicad_symbol,omitempty"`    // KiCad LIB_ID, e.g. "Device:R"
-	KicadFootprint    *string    `json:"kicad_footprint,omitempty"` // e.g. "Resistor_SMD:R_0603_1608Metric"
-	Keywords          *string    `json:"keywords,omitempty"`
-	Barcode           *string    `json:"barcode,omitempty"`
-	ImagePath         *string    `json:"image_path,omitempty"`
-	IsTemplate        bool       `json:"is_template"`
-	IsComponent       bool       `json:"is_component"`
-	IsAssembly        bool       `json:"is_assembly"`
-	IsPurchaseable    bool       `json:"is_purchaseable"`
-	IsTrackable       bool       `json:"is_trackable"`
+	ID             uuid.UUID  `json:"id"`
+	CategoryID     *uuid.UUID `json:"category_id,omitempty"`
+	VariantOf      *uuid.UUID `json:"variant_of,omitempty"`
+	Name           string     `json:"name"`
+	Description    *string    `json:"description,omitempty"`
+	IPN            *string    `json:"ipn,omitempty"` // FireBin internal part number
+	Package        *string    `json:"package,omitempty"`
+	KicadSymbol    *string    `json:"kicad_symbol,omitempty"`    // KiCad LIB_ID, e.g. "Device:R"
+	KicadFootprint *string    `json:"kicad_footprint,omitempty"` // e.g. "Resistor_SMD:R_0603_1608Metric"
+	Keywords       *string    `json:"keywords,omitempty"`
+	Barcode        *string    `json:"barcode,omitempty"`
+	ImagePath      *string    `json:"image_path,omitempty"`
+	IsTemplate     bool       `json:"is_template"`
+	IsComponent    bool       `json:"is_component"`
+	IsAssembly     bool       `json:"is_assembly"`
+	IsPurchaseable bool       `json:"is_purchaseable"`
+	IsTrackable    bool       `json:"is_trackable"`
+	// ReferenceOnly marks a part recorded but not owned: researched for a future
+	// design, remembered as an alternative, or waiting to be ordered. It is about
+	// intent, not the current count, which is why it cannot be derived from
+	// total_stock — a part drained to zero looks identical to one that never
+	// arrived.
+	ReferenceOnly     bool       `json:"reference_only"`
 	MinimumStock      float64    `json:"minimum_stock"`
 	DefaultLocationID *uuid.UUID `json:"default_location_id,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
@@ -163,6 +178,13 @@ type KicadLibrarySummary struct {
 	Lib        string `json:"lib"`
 	Count      int    `json:"count"`
 	WithSource int    `json:"with_source"`
+	// Where this library came from and when. A full KiCad install is 438
+	// libraries, so the folder you added yesterday is invisible in an
+	// alphabetical list; the import it arrived in is what tells it apart.
+	// Null when the import predates imports being recorded. Reads sort those
+	// first rather than burying them under 438 stock libraries.
+	ImportedAt *time.Time `json:"imported_at"`
+	Source     string     `json:"source"`
 }
 
 // KicadIndexMeta records which machine produced the current index, so a missing
@@ -211,4 +233,57 @@ type Stats struct {
 	LowStockCount  int     `json:"low_stock_count"`
 	TotalUnits     float64 `json:"total_units"`
 	InventoryValue float64 `json:"inventory_value"`
+}
+
+// ─── Assistant conversations ────────────────────────────────────────────────
+
+// Conversation is one thread of questions and answers, belonging to a user.
+type Conversation struct {
+	ID           uuid.UUID             `json:"id"`
+	Title        string                `json:"title"`
+	SubjectKind  *string               `json:"subject_kind,omitempty"`
+	SubjectID    *uuid.UUID            `json:"subject_id,omitempty"`
+	MessageCount int                   `json:"message_count"`
+	Messages     []ConversationMessage `json:"messages,omitempty"`
+	CreatedAt    time.Time             `json:"created_at"`
+	UpdatedAt    time.Time             `json:"updated_at"`
+}
+
+// ConversationMessage is one turn. Tool calls and results are kept alongside
+// the prose because a provider needs them replayed to continue the thread, and
+// because they are the record of where an answer's numbers came from.
+type ConversationMessage struct {
+	ID          uuid.UUID       `json:"id"`
+	Seq         int             `json:"seq"`
+	Role        string          `json:"role"`
+	Content     string          `json:"content"`
+	ToolCalls   json.RawMessage `json:"tool_calls,omitempty"`
+	ToolResults json.RawMessage `json:"tool_results,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+}
+
+// AssistantRun is what one turn cost, whether or not it produced an answer.
+type AssistantRun struct {
+	ConversationID uuid.UUID `json:"conversation_id"`
+	UserID         uuid.UUID `json:"user_id"`
+	Provider       string    `json:"provider"`
+	Model          string    `json:"model"`
+	Rounds         int       `json:"rounds"`
+	InputTokens    int       `json:"input_tokens"`
+	OutputTokens   int       `json:"output_tokens"`
+	CostUSD        float64   `json:"cost_usd"`
+	// CostKnown separates a local model's real zero from a model missing from
+	// the pricing table. Stored as NULL when false.
+	CostKnown bool   `json:"cost_known"`
+	Error     string `json:"error,omitempty"`
+}
+
+// AssistantUsage totals a user's spend.
+type AssistantUsage struct {
+	Turns         int     `json:"turns"`
+	FailedTurns   int     `json:"failed_turns"`
+	InputTokens   int     `json:"input_tokens"`
+	OutputTokens  int     `json:"output_tokens"`
+	CostUSD       float64 `json:"cost_usd"`
+	UnpricedTurns int     `json:"unpriced_turns"`
 }

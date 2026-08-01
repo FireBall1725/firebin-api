@@ -4,6 +4,8 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -35,6 +37,7 @@ type partRequest struct {
 	ImagePath         *string              `json:"image_path"`
 	IsTemplate        bool                 `json:"is_template"`
 	IsAssembly        bool                 `json:"is_assembly"`
+	ReferenceOnly     bool                 `json:"reference_only"`
 	MinimumStock      float64              `json:"minimum_stock"`
 	DefaultLocationID *uuid.UUID           `json:"default_location_id"`
 	Parameters        []partParameterInput `json:"parameters"`
@@ -163,13 +166,42 @@ func (h *Handler) UpdatePart(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var req partRequest
-	if !respond.Decode(w, r, &req) {
+	// Read the body once, then read it twice: strictly into the typed request,
+	// and loosely into a key set. The key set is the only way to tell a field the
+	// client omitted from one it sent as null, and PATCH has to treat those
+	// differently — keep versus clear.
+	raw, err := io.ReadAll(io.LimitReader(r.Body, respond.DefaultMaxBody))
+	if err != nil {
+		respond.Error(w, http.StatusBadRequest, "could not read request body")
 		return
 	}
-	p := partFromRequest(&req)
+
+	var req partRequest
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+	var present map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &present); err != nil {
+		respond.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Start from what is stored, so anything the caller did not mention survives.
+	p, err := h.Parts.Get(r.Context(), id)
+	if errors.Is(err, repository.ErrNotFound) {
+		respond.Error(w, http.StatusNotFound, "part not found")
+		return
+	}
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not load part")
+		return
+	}
+	applyPartPatch(p, &req, present)
 	p.ID = id
-	err := h.Parts.Update(r.Context(), p)
+	err = h.Parts.Update(r.Context(), p)
 	if errors.Is(err, repository.ErrNotFound) {
 		respond.Error(w, http.StatusNotFound, "part not found")
 		return
@@ -312,6 +344,8 @@ func normNilString(s *string) *string {
 	return &t
 }
 
+// partFromRequest builds a new part. Create only: every column is set, and the
+// flags nothing exposes take their defaults.
 func partFromRequest(req *partRequest) *models.Part {
 	return &models.Part{
 		CategoryID:        req.CategoryID,
@@ -329,9 +363,82 @@ func partFromRequest(req *partRequest) *models.Part {
 		IsComponent:       true,
 		IsAssembly:        req.IsAssembly,
 		IsPurchaseable:    true,
+		ReferenceOnly:     req.ReferenceOnly,
 		MinimumStock:      req.MinimumStock,
 		DefaultLocationID: req.DefaultLocationID,
 	}
+}
+
+// applyPartPatch updates only the fields the caller actually sent.
+//
+// PATCH used to build a whole part from the request and write every column, so
+// any field a client did not know about was overwritten with its zero value.
+// That was not theoretical: editing a part in the web form erased its keywords
+// and barcode and quietly demoted a template, because the form does not send
+// those three, and every MCP update_part erased the KiCad symbol and footprint,
+// because that client's request struct predates the columns. Each client
+// destroyed whatever the other cared about.
+//
+// `present` carries the keys that appeared in the request body, which is what
+// separates "the client left this out" from "the client sent null to clear it".
+// Pointer fields alone cannot tell those apart: both arrive as nil. Absent means
+// keep, null means clear.
+func applyPartPatch(cur *models.Part, req *partRequest, present map[string]json.RawMessage) {
+	has := func(k string) bool { _, ok := present[k]; return ok }
+
+	if has("name") {
+		cur.Name = strings.TrimSpace(req.Name)
+	}
+	if has("category_id") {
+		cur.CategoryID = req.CategoryID
+	}
+	if has("variant_of") {
+		cur.VariantOf = req.VariantOf
+	}
+	if has("description") {
+		cur.Description = req.Description
+	}
+	if has("ipn") {
+		cur.IPN = normNilString(req.IPN)
+	}
+	if has("package") {
+		cur.Package = req.Package
+	}
+	if has("kicad_symbol") {
+		cur.KicadSymbol = normNilString(req.KicadSymbol)
+	}
+	if has("kicad_footprint") {
+		cur.KicadFootprint = normNilString(req.KicadFootprint)
+	}
+	if has("keywords") {
+		cur.Keywords = req.Keywords
+	}
+	if has("barcode") {
+		cur.Barcode = req.Barcode
+	}
+	if has("image_path") {
+		cur.ImagePath = normNilString(req.ImagePath)
+	}
+	if has("is_template") {
+		cur.IsTemplate = req.IsTemplate
+	}
+	if has("is_assembly") {
+		cur.IsAssembly = req.IsAssembly
+	}
+	if has("reference_only") {
+		cur.ReferenceOnly = req.ReferenceOnly
+	}
+	if has("minimum_stock") {
+		cur.MinimumStock = req.MinimumStock
+	}
+	if has("default_location_id") {
+		cur.DefaultLocationID = req.DefaultLocationID
+	}
+
+	// is_component, is_purchaseable and is_trackable are deliberately absent.
+	// No request exposes them, and the old code hardcoded the first two to true
+	// and left the third at false on every write, so they were reset on every
+	// edit. Carrying `cur` through means whatever is in the database survives.
 }
 
 // resolveAlternatives pulls similar-part suggestions from the cached enrichment
