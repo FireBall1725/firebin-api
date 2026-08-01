@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -91,6 +92,36 @@ func (r *KicadLibraryTokenRepo) Revoke(ctx context.Context, id uuid.UUID) error 
 		if !exists {
 			return ErrNotFound
 		}
+	}
+	return nil
+}
+
+// Delete removes a revoked workstation's row entirely, so the list can be tidied
+// instead of accumulating every machine that ever existed.
+//
+// Revoked rows only. Deleting a live one would cut a working workstation off with
+// no record of it, so revoking stays a deliberate first step: a live row returns
+// ErrConflict and an unknown one ErrNotFound.
+//
+// Removing the row does not resurrect the credential. Lookup matches on hash, so
+// a deleted row and a revoked row both fail the same way.
+func (r *KicadLibraryTokenRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	ct, err := r.pool.Exec(ctx,
+		`DELETE FROM kicad_library_tokens WHERE id = $1 AND revoked_at IS NOT NULL`, id)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		var revoked *time.Time
+		err := r.pool.QueryRow(ctx,
+			`SELECT revoked_at FROM kicad_library_tokens WHERE id = $1`, id).Scan(&revoked)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		return ErrConflict // still live; revoke it first
 	}
 	return nil
 }

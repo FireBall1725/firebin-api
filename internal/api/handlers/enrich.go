@@ -483,7 +483,7 @@ func (h *Handler) applyEnrichment(ctx context.Context, part *models.Part, primar
 		if s.Packaging != "" {
 			pkg = &s.Packaging
 		}
-		_, _ = h.Catalog.CreateSupplierPart(ctx, primary.ID, supID, s.SKU, pkg, url, nil, s.Prices)
+		_, _ = h.Catalog.CreateSupplierPart(ctx, primary.ID, supID, s.SKU, pkg, url, s.MOQ, s.Prices)
 	}
 }
 

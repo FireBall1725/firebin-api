@@ -286,23 +286,44 @@ func kicadHTTPLibFile(rootURL, token string) string {
 `
 }
 
-// RevokeKicadLibraryToken cuts off one workstation.
-// @Summary     Revoke a KiCad library token
-// @Description Revoke one workstation's token. Other workstations are unaffected.
+// RevokeKicadLibraryToken cuts off one workstation, or with ?purge=true removes
+// an already-revoked row.
+// @Summary     Revoke or delete a KiCad library token
+// @Description Revoke one workstation's token; other workstations are unaffected. With purge=true, delete an already-revoked record instead.
 // @Tags        settings
 // @Security    BearerAuth
 // @Produce     json
-// @Param       id   path      string  true  "Token id"
+// @Param       id     path      string  true   "Token id"
+// @Param       purge  query     bool    false  "Delete the record of an already-revoked token"
 // @Success     200  {object}  map[string]interface{}
 // @Failure     401  {object}  map[string]interface{}
 // @Failure     403  {object}  map[string]interface{}
 // @Failure     404  {object}  map[string]interface{}
+// @Failure     409  {object}  map[string]interface{}
 // @Router      /settings/kicad-library/tokens/{id}  [delete]
 func (h *Handler) RevokeKicadLibraryToken(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathUUID(w, r)
 	if !ok {
 		return
 	}
+
+	// Deleting is deliberately a second step after revoking, so cutting a
+	// workstation off and tidying the list stay separate actions.
+	if r.URL.Query().Get("purge") == "true" {
+		err := h.KicadHTTPTokens.Delete(r.Context(), id)
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			respond.Error(w, http.StatusNotFound, "token not found")
+		case errors.Is(err, repository.ErrConflict):
+			respond.Error(w, http.StatusConflict, "revoke this workstation before deleting it")
+		case err != nil:
+			respond.Error(w, http.StatusInternalServerError, "could not delete the token")
+		default:
+			respond.JSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+		}
+		return
+	}
+
 	err := h.KicadHTTPTokens.Revoke(r.Context(), id)
 	if errors.Is(err, repository.ErrNotFound) {
 		respond.Error(w, http.StatusNotFound, "token not found")
