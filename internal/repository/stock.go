@@ -300,6 +300,23 @@ func (r *StockRepo) Adjust(ctx context.Context, p AdjustParams) (*models.StockIt
 		itemID, p.Kind, delta, newQty, p.Note, p.UserID); err != nil {
 		return nil, err
 	}
+	// Receiving stock is the answer to the question reference_only asks. A part
+	// marked "recorded but not owned" that holds three of them is a state
+	// nothing in the app can describe: the list would say reference, the detail
+	// page would say reference, and the shelf would have three.
+	//
+	// In the same transaction as the movement, so a receipt cannot land with the
+	// flag left behind. Going the other way is deliberately not symmetric:
+	// removing the last one leaves the part owned and empty, because "I ran out"
+	// is a different fact from "I never had one" and only the user can say the
+	// second.
+	if delta > 0 && newQty > 0 {
+		if _, err = tx.Exec(ctx,
+			`UPDATE parts SET reference_only = false WHERE id = $1 AND reference_only`,
+			p.PartID); err != nil {
+			return nil, err
+		}
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}

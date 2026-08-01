@@ -4,13 +4,13 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
-	"sort"
 	"strconv"
 
 	"github.com/firelabsca/firebin-api/internal/api/respond"
 	"github.com/firelabsca/firebin-api/internal/models"
-	"github.com/google/uuid"
+	"github.com/firelabsca/firebin-api/internal/picklist"
 )
 
 // BoardPickList computes what to pull from stock to build N of a board. Required
@@ -38,97 +38,18 @@ func (h *Handler) BoardPickList(w http.ResponseWriter, r *http.Request) {
 		qty = q
 	}
 
-	board, err := h.Projects.GetBoard(r.Context(), boardID)
+	// Named rather than inferred so swaggo can resolve the response type: it
+	// reads this file's imports, and the annotation names models.
+	var list *models.PickList
+	list, err := picklist.Compute(r.Context(), h.Projects, h.Stock, boardID, qty)
 	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "could not load board")
+		var notFound picklist.ErrBoardNotFound
+		if errors.As(err, &notFound) {
+			respond.Error(w, http.StatusNotFound, "board not found")
+			return
+		}
+		respond.Error(w, http.StatusInternalServerError, "could not build the pick list")
 		return
 	}
-	if board == nil {
-		respond.Error(w, http.StatusNotFound, "board not found")
-		return
-	}
-	copies := board.Copies
-	if copies < 1 {
-		copies = 1
-	}
-
-	// Aggregate required quantity per matched part; collect unmatched lines.
-	required := map[uuid.UUID]float64{}
-	names := map[uuid.UUID]string{}
-	order := []uuid.UUID{}
-	unmatched := []models.PickUnmatched{}
-	for _, l := range board.Lines {
-		need := float64(l.Quantity * copies * qty)
-		if l.PartID == nil {
-			unmatched = append(unmatched, models.PickUnmatched{Refs: l.Refs, Value: l.Value, Quantity: l.Quantity * copies * qty})
-			continue
-		}
-		if _, seen := required[*l.PartID]; !seen {
-			order = append(order, *l.PartID)
-			names[*l.PartID] = l.PartName
-		}
-		required[*l.PartID] += need
-	}
-
-	lots, err := h.Stock.StockForParts(r.Context(), order)
-	if err != nil {
-		respond.Error(w, http.StatusInternalServerError, "could not read stock")
-		return
-	}
-	byPart := map[uuid.UUID][]int{} // part -> indexes into lots (preserves bin order)
-	available := map[uuid.UUID]float64{}
-	for i, lot := range lots {
-		byPart[lot.PartID] = append(byPart[lot.PartID], i)
-		available[lot.PartID] += lot.Quantity
-	}
-
-	entries := []models.PickEntry{}
-	shortfalls := []models.PickShortfall{}
-	var total float64
-	for _, pid := range order {
-		need := required[pid]
-		remaining := need
-		for _, i := range byPart[pid] {
-			if remaining <= 0 {
-				break
-			}
-			lot := lots[i]
-			pull := remaining
-			if lot.Quantity < pull {
-				pull = lot.Quantity
-			}
-			loc := ""
-			if lot.LocationName != nil {
-				loc = *lot.LocationName
-			}
-			entries = append(entries, models.PickEntry{
-				StockItemID: lot.ID, PartID: pid, PartName: lot.PartName,
-				LocationID: lot.LocationID, LocationName: loc, Quantity: pull,
-			})
-			remaining -= pull
-			total += pull
-		}
-		if avail := available[pid]; avail < need {
-			shortfalls = append(shortfalls, models.PickShortfall{
-				PartID: pid, PartName: names[pid], Required: need, Available: avail, Short: need - avail,
-			})
-		}
-	}
-
-	// Walk order: by location name (unbinned last), then part name.
-	sort.SliceStable(entries, func(i, j int) bool {
-		a, b := entries[i], entries[j]
-		if (a.LocationName == "") != (b.LocationName == "") {
-			return a.LocationName != "" // named bins first
-		}
-		if a.LocationName != b.LocationName {
-			return a.LocationName < b.LocationName
-		}
-		return a.PartName < b.PartName
-	})
-
-	respond.JSON(w, http.StatusOK, models.PickList{
-		BoardID: board.ID, BoardName: board.Name, Quantity: qty, Copies: copies,
-		TotalUnits: total, Entries: entries, Shortfalls: shortfalls, Unmatched: unmatched,
-	})
+	respond.JSON(w, http.StatusOK, list)
 }

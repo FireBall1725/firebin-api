@@ -75,12 +75,19 @@ func (r *KicadLibraryRepo) Search(ctx context.Context, kind, q string) ([]models
 // Libraries lists the distinct library nicknames with their item counts, for
 // the viewer's left-hand list.
 func (r *KicadLibraryRepo) Libraries(ctx context.Context, kind string) ([]models.KicadLibrarySummary, error) {
+	// A library takes the newest import that wrote any of its items. Renaming
+	// can merge two libraries, so an item is the thing that has one import and
+	// a library is not; the newest is the answer to "when did this last
+	// change", which is what someone looking for what they just added means.
 	rows, err := r.pool.Query(ctx, `
-		SELECT kind, lib, count(*)::int, count(source)::int
-		FROM kicad_library_items
-		WHERE ($1 = '' OR kind = $1)
-		GROUP BY kind, lib
-		ORDER BY lib`, kind)
+		SELECT i.kind, i.lib, count(*)::int, count(i.source)::int,
+		       max(s.imported_at) AS imported_at,
+		       (array_agg(s.source ORDER BY s.imported_at DESC NULLS FIRST))[1] AS source
+		FROM kicad_library_items i
+		JOIN kicad_library_scans s ON s.scan_id = i.scan_id
+		WHERE ($1 = '' OR i.kind = $1)
+		GROUP BY i.kind, i.lib
+		ORDER BY i.lib`, kind)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +96,7 @@ func (r *KicadLibraryRepo) Libraries(ctx context.Context, kind string) ([]models
 	out := []models.KicadLibrarySummary{}
 	for rows.Next() {
 		var s models.KicadLibrarySummary
-		if err := rows.Scan(&s.Kind, &s.Lib, &s.Count, &s.WithSource); err != nil {
+		if err := rows.Scan(&s.Kind, &s.Lib, &s.Count, &s.WithSource, &s.ImportedAt, &s.Source); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -165,50 +172,78 @@ func (r *KicadLibraryRepo) SaveDrawing(ctx context.Context, kind, lib, name stri
 
 // UpsertBatch writes one chunk of a scan. Called repeatedly; the scan is not
 // visible as "current" until FinishScan runs.
-func (r *KicadLibraryRepo) UpsertBatch(ctx context.Context, scanID uuid.UUID, items []models.KicadLibraryUpload) (int64, error) {
+// UpsertBatch stores a batch of scanned items.
+//
+// overwrite decides what happens to a symbol or footprint that is already in
+// the index under the same library and name. Off, it is left as it is and the
+// scan reports it as skipped, which is what importing a downloaded library
+// should do: bringing in a folder is not a reason to overwrite a symbol
+// somebody has already curated. On, the stored source is replaced, which is how
+// a library is refreshed after it changes upstream.
+//
+// Returns how many rows were written and how many were left alone.
+func (r *KicadLibraryRepo) UpsertBatch(ctx context.Context, scanID uuid.UUID, items []models.KicadLibraryUpload, overwrite bool) (written, skipped int64, err error) {
 	if len(items) == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
 	batch := &pgx.Batch{}
 	for _, it := range items {
 		var gz []byte
 		if it.Source != "" {
 			if len(it.Source) > maxSourceBytes {
-				return 0, fmt.Errorf("%s:%s source is %d bytes, over the %d limit", it.Lib, it.Name, len(it.Source), maxSourceBytes)
+				return 0, 0, fmt.Errorf("%s:%s source is %d bytes, over the %d limit", it.Lib, it.Name, len(it.Source), maxSourceBytes)
 			}
 			var err error
 			if gz, err = gzipBytes([]byte(it.Source)); err != nil {
-				return 0, err
+				return 0, 0, err
 			}
 		}
-		// Re-uploading an item clears its cached drawing: the source may have
-		// changed, and a stale drawing would render the old geometry forever.
-		batch.Queue(`
-			INSERT INTO kicad_library_items (scan_id, kind, lib, name, source)
-			VALUES ($1,$2,$3,$4,$5)
-			ON CONFLICT (kind, lib, name) DO UPDATE
-			SET scan_id = EXCLUDED.scan_id,
-			    source  = COALESCE(EXCLUDED.source, kicad_library_items.source),
-			    drawing = CASE WHEN EXCLUDED.source IS DISTINCT FROM kicad_library_items.source
-			                   THEN NULL ELSE kicad_library_items.drawing END`,
-			scanID, it.Kind, it.Lib, it.Name, gz)
+		if overwrite {
+			// Replacing an item clears its cached drawing: the source may have
+			// changed, and a stale drawing would render the old geometry forever.
+			batch.Queue(`
+				INSERT INTO kicad_library_items (scan_id, kind, lib, name, source)
+				VALUES ($1,$2,$3,$4,$5)
+				ON CONFLICT (kind, lib, name) DO UPDATE
+				SET scan_id = EXCLUDED.scan_id,
+				    source  = COALESCE(EXCLUDED.source, kicad_library_items.source),
+				    drawing = CASE WHEN EXCLUDED.source IS DISTINCT FROM kicad_library_items.source
+				                   THEN NULL ELSE kicad_library_items.drawing END`,
+				scanID, it.Kind, it.Lib, it.Name, gz)
+		} else {
+			batch.Queue(`
+				INSERT INTO kicad_library_items (scan_id, kind, lib, name, source)
+				VALUES ($1,$2,$3,$4,$5)
+				ON CONFLICT (kind, lib, name) DO NOTHING`,
+				scanID, it.Kind, it.Lib, it.Name, gz)
+		}
 	}
 	res := r.pool.SendBatch(ctx, batch)
 	defer res.Close()
 
-	var n int64
 	for range items {
-		tag, err := res.Exec()
-		if err != nil {
-			return n, err
+		tag, execErr := res.Exec()
+		if execErr != nil {
+			return written, skipped, execErr
 		}
-		n += tag.RowsAffected()
+		// DO NOTHING reports no rows affected, which is exactly the item that
+		// already existed.
+		if tag.RowsAffected() > 0 {
+			written++
+		} else {
+			skipped++
+		}
 	}
-	return n, nil
+	return written, skipped, nil
 }
 
-// FinishScan drops everything not carried by this scan and records provenance.
-// This is the point at which a library the user uninstalled disappears.
+// FinishScan records provenance for a completed scan.
+//
+// It deletes nothing. Importing a library used to drop every item the scan did
+// not carry, which turned "add this folder" into "replace the index with this
+// folder": a scan that came up short took everything else with it. Whether an
+// existing item is kept or replaced is decided per item at upload time, which
+// is the level the question actually lives at.
 func (r *KicadLibraryRepo) FinishScan(ctx context.Context, scanID uuid.UUID, source, kicadVersion string) (*models.KicadIndexMeta, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -216,7 +251,16 @@ func (r *KicadLibraryRepo) FinishScan(ctx context.Context, scanID uuid.UUID, sou
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := tx.Exec(ctx, `DELETE FROM kicad_library_items WHERE scan_id <> $1`, scanID); err != nil {
+	// Record the import before the summary. This is what lets a library say
+	// which pass it arrived in, so the folder someone downloaded is separable
+	// from the 438 that came with KiCad.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO kicad_library_scans (scan_id, source, kicad_version, imported_at)
+		VALUES ($1, $2, NULLIF($3,''), now())
+		ON CONFLICT (scan_id) DO UPDATE SET
+			source = EXCLUDED.source, kicad_version = EXCLUDED.kicad_version,
+			imported_at = EXCLUDED.imported_at`,
+		scanID, source, kicadVersion); err != nil {
 		return nil, err
 	}
 
@@ -316,4 +360,51 @@ func (r *KicadLibraryRepo) Usage(ctx context.Context, kind, libID string) ([]mod
 		out = append(out, u)
 	}
 	return out, rows.Err()
+}
+
+// RenameLibrary moves every item of one kind from one library name to another.
+//
+// The name a library gets on import is the filename it came from, which is
+// often a datestamp or "footprints", and it is what KiCad matches on. Being
+// stuck with it means being stuck with a library nobody can identify.
+//
+// Returns how many items moved. Merging into an existing name is allowed and is
+// sometimes the point, so a collision keeps whichever item is already there
+// rather than failing the whole rename.
+func (r *KicadLibraryRepo) RenameLibrary(ctx context.Context, kind, from, to string) (int64, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE kicad_library_items AS it
+		SET lib = $3
+		WHERE it.kind = $1 AND it.lib = $2
+		  AND NOT EXISTS (
+			SELECT 1 FROM kicad_library_items other
+			WHERE other.kind = $1 AND other.lib = $3 AND other.name = it.name
+		  )`, kind, from, to)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// DeleteLibrary removes every item of one kind in one library.
+func (r *KicadLibraryRepo) DeleteLibrary(ctx context.Context, kind, lib string) (int64, error) {
+	tag, err := r.pool.Exec(ctx,
+		`DELETE FROM kicad_library_items WHERE kind = $1 AND lib = $2`, kind, lib)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// DeleteItem removes one symbol or footprint.
+func (r *KicadLibraryRepo) DeleteItem(ctx context.Context, kind, lib, name string) error {
+	tag, err := r.pool.Exec(ctx,
+		`DELETE FROM kicad_library_items WHERE kind = $1 AND lib = $2 AND name = $3`, kind, lib, name)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

@@ -22,8 +22,11 @@ func (r *StatsRepo) Get(ctx context.Context) (*models.Stats, error) {
 			(SELECT COUNT(*) FROM parts WHERE variant_of IS NULL),
 			(SELECT COUNT(*) FROM parts WHERE variant_of IS NOT NULL),
 			(SELECT COUNT(*) FROM storage_locations),
+			-- Matches ListLowStock, reference exclusion included. A count that
+			-- disagrees with the list it heads is worse than no count.
 			(SELECT COUNT(*) FROM parts p
 				WHERE p.minimum_stock > 0
+				  AND NOT COALESCE(p.reference_only, false)
 				  AND NOT EXISTS (SELECT 1 FROM parts v WHERE v.variant_of = p.id)
 				  AND COALESCE((SELECT SUM(quantity) FROM stock_items s WHERE s.part_id = p.id), 0) <= p.minimum_stock),
 			COALESCE((SELECT SUM(quantity) FROM stock_items), 0)::float8,

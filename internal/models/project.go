@@ -47,6 +47,12 @@ type PickUnmatched struct {
 	Refs     string `json:"refs"`
 	Value    string `json:"value"`
 	Quantity int    `json:"quantity"` // total needed across the whole build
+	// What the BOM says about the part, carried through rather than dropped.
+	// An unmatched line is the one a caller most needs detail on: it is the
+	// thing to go and buy, and the MPN is usually sitting right there on it.
+	Footprint    string `json:"footprint,omitempty"`
+	MPN          string `json:"mpn,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
 }
 
 // Project is a design made of one or more boards.

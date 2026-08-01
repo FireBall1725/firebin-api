@@ -23,7 +23,7 @@ func NewPartRepo(pool *pgxpool.Pool) *PartRepo { return &PartRepo{pool: pool} }
 const partCols = `parts.id, parts.category_id, parts.variant_of, parts.name, parts.description, parts.ipn, parts.package,
 	parts.kicad_symbol, parts.kicad_footprint, parts.keywords,
 	parts.barcode, parts.image_path, parts.is_template, parts.is_component, parts.is_assembly, parts.is_purchaseable,
-	parts.is_trackable, parts.minimum_stock::float8, parts.default_location_id, parts.created_at, parts.updated_at`
+	parts.is_trackable, COALESCE(parts.reference_only, false) AS reference_only, parts.minimum_stock::float8, parts.default_location_id, parts.created_at, parts.updated_at`
 
 func scanPart(row pgx.Row) (*models.Part, error) {
 	var p models.Part
@@ -31,7 +31,7 @@ func scanPart(row pgx.Row) (*models.Part, error) {
 		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package,
 		&p.KicadSymbol, &p.KicadFootprint, &p.Keywords,
 		&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
-		&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
+		&p.IsTrackable, &p.ReferenceOnly, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -136,7 +136,7 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 			&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package,
 			&p.KicadSymbol, &p.KicadFootprint, &p.Keywords,
 			&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
-			&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
+			&p.IsTrackable, &p.ReferenceOnly, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
 			&p.TotalStock, &p.VariantCount, &mpn, &mfr, &locName, &p.PrimaryLocationID,
 		); err != nil {
 			return nil, err
@@ -162,7 +162,7 @@ func scanPartWithTotals(row pgx.Row) (*models.Part, error) {
 		&p.ID, &p.CategoryID, &p.VariantOf, &p.Name, &p.Description, &p.IPN, &p.Package,
 		&p.KicadSymbol, &p.KicadFootprint, &p.Keywords,
 		&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
-		&p.IsTrackable, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
+		&p.IsTrackable, &p.ReferenceOnly, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
 		&p.TotalStock, &p.VariantCount,
 	); err != nil {
 		return nil, err
@@ -172,12 +172,17 @@ func scanPartWithTotals(row pgx.Row) (*models.Part, error) {
 
 // ListLowStock returns leaf parts (no variants) whose stock is at or below a
 // positive minimum, most-depleted first.
+//
+// Reference parts are excluded. Zero used to mean two things, "I ran out" and
+// "I never owned one", and reading both as an alarm buried the parts that
+// genuinely needed reordering under every part saved for later.
 func (r *PartRepo) ListLowStock(ctx context.Context) ([]models.Part, error) {
 	rows, err := r.pool.Query(ctx, `SELECT `+partCols+`,
 		COALESCE((SELECT SUM(quantity) FROM stock_items s WHERE s.part_id = parts.id), 0)::float8 AS total_stock,
 		0::int AS variant_count
 		FROM parts
 		WHERE minimum_stock > 0
+		  AND NOT COALESCE(reference_only, false)
 		  AND NOT EXISTS (SELECT 1 FROM parts v WHERE v.variant_of = parts.id)
 		  AND COALESCE((SELECT SUM(quantity) FROM stock_items s WHERE s.part_id = parts.id), 0) <= minimum_stock
 		ORDER BY (COALESCE((SELECT SUM(quantity) FROM stock_items s WHERE s.part_id = parts.id), 0) - minimum_stock) ASC
@@ -269,12 +274,14 @@ func (r *PartRepo) Create(ctx context.Context, p *models.Part) error {
 	err := r.pool.QueryRow(ctx, `
 		INSERT INTO parts (category_id, variant_of, name, description, ipn, package, keywords,
 			barcode, image_path, is_template, is_component, is_assembly, is_purchaseable,
-			is_trackable, minimum_stock, default_location_id, kicad_symbol, kicad_footprint)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+			is_trackable, minimum_stock, default_location_id, kicad_symbol, kicad_footprint,
+			reference_only)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
 		RETURNING id, created_at, updated_at`,
 		p.CategoryID, p.VariantOf, p.Name, p.Description, p.IPN, p.Package, p.Keywords,
 		p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent, p.IsAssembly, p.IsPurchaseable,
 		p.IsTrackable, p.MinimumStock, p.DefaultLocationID, p.KicadSymbol, p.KicadFootprint,
+		p.ReferenceOnly,
 	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 	if isUniqueViolation(err) {
 		return ErrConflict
@@ -287,12 +294,13 @@ func (r *PartRepo) Update(ctx context.Context, p *models.Part) error {
 		UPDATE parts SET category_id=$2, variant_of=$3, name=$4, description=$5, ipn=$6, package=$7,
 			keywords=$8, barcode=$9, image_path=$10, is_template=$11, is_component=$12,
 			is_assembly=$13, is_purchaseable=$14, is_trackable=$15, minimum_stock=$16,
-			default_location_id=$17, kicad_symbol=$18, kicad_footprint=$19
+			default_location_id=$17, kicad_symbol=$18, kicad_footprint=$19,
+			reference_only=$20
 		WHERE id=$1`,
 		p.ID, p.CategoryID, p.VariantOf, p.Name, p.Description, p.IPN, p.Package,
 		p.Keywords, p.Barcode, p.ImagePath, p.IsTemplate, p.IsComponent,
 		p.IsAssembly, p.IsPurchaseable, p.IsTrackable, p.MinimumStock,
-		p.DefaultLocationID, p.KicadSymbol, p.KicadFootprint)
+		p.DefaultLocationID, p.KicadSymbol, p.KicadFootprint, p.ReferenceOnly)
 	if isUniqueViolation(err) {
 		return ErrConflict
 	}

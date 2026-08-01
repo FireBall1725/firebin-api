@@ -1,0 +1,40 @@
+-- Distinguish a part you keep on the shelf from one you have merely recorded.
+--
+-- reference_only means "I have recorded this part but do not own it": a component
+-- researched for a future design, an alternative worth remembering, something to
+-- order later. It is about intent, not about the current count.
+--
+-- The two were previously indistinguishable, and that was not harmless. Nothing
+-- in the schema could separate "I ran out of these" from "I have never owned
+-- one": total_stock is COALESCE(SUM(quantity), 0) everywhere, nothing counts
+-- stock rows, StockRepo.Adjust creates a zero-quantity lot before applying a
+-- delta, and the opt-in empty-lot cleanup deletes zero rows outright. A part
+-- drained to nothing ends up byte-identical to one that never arrived, so the
+-- distinction has to be stored rather than inferred.
+--
+-- Named for the exception rather than the rule, and false by default, for three
+-- reasons. Every existing row keeps its meaning with no backfill. A row reading
+-- reference_only = true while holding stock is obviously wrong on sight, where
+-- "is_stocked = false with 3 in stock" is merely confusing. And "is_stocked"
+-- reads as a claim about the present quantity, which is the exact distinction
+-- this column exists to avoid.
+--
+-- Deliberately not a reuse of is_trackable, which is dead and looks tempting:
+-- partFromRequest never assigns it, so it is reset to false on every edit from
+-- both clients, it means something else, and it is already in users' JSON
+-- exports carrying the old meaning.
+--
+-- NULLABLE on purpose, despite every row having a value in practice. The
+-- importer inserts with
+--     INSERT INTO parts SELECT * FROM jsonb_populate_recordset(NULL::parts, $1)
+-- and a key absent from the JSON becomes NULL rather than the column default, so
+-- SELECT * supplies an explicit NULL and a NOT NULL column would reject it. That
+-- would make every backup taken before this migration unrestorable, failing the
+-- whole transaction at the moment the user most needs it to work. Verified
+-- against Postgres directly, not assumed. Readers COALESCE, so NULL is simply
+-- "not reference only".
+ALTER TABLE parts ADD COLUMN reference_only BOOLEAN DEFAULT false;
+
+-- No index. The predicate only ever narrows a full scan of a catalogue measured
+-- in thousands of rows, and a boolean with almost every row false is poor index
+-- material. Worth revisiting only if a parts list gets slow.

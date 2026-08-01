@@ -103,6 +103,21 @@ definitions:
       user_id:
         type: string
     type: object
+  github_com_firelabsca_firebin-api_internal_models.AssistantUsage:
+    properties:
+      cost_usd:
+        type: number
+      failed_turns:
+        type: integer
+      input_tokens:
+        type: integer
+      output_tokens:
+        type: integer
+      turns:
+        type: integer
+      unpriced_turns:
+        type: integer
+    type: object
   github_com_firelabsca_firebin-api_internal_models.BOMLine:
     properties:
       board_id:
@@ -191,6 +206,48 @@ definitions:
       updated_at:
         type: string
     type: object
+  github_com_firelabsca_firebin-api_internal_models.Conversation:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      message_count:
+        type: integer
+      messages:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.ConversationMessage'
+        type: array
+      subject_id:
+        type: string
+      subject_kind:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.ConversationMessage:
+    properties:
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      role:
+        type: string
+      seq:
+        type: integer
+      tool_calls:
+        items:
+          type: integer
+        type: array
+      tool_results:
+        items:
+          type: integer
+        type: array
+    type: object
   github_com_firelabsca_firebin-api_internal_models.JobLog:
     properties:
       id:
@@ -238,9 +295,19 @@ definitions:
     properties:
       count:
         type: integer
+      imported_at:
+        description: |-
+          Where this library came from and when. A full KiCad install is 438
+          libraries, so the folder you added yesterday is invisible in an
+          alphabetical list; the import it arrived in is what tells it apart.
+          Null when the import predates imports being recorded. Reads sort those
+          first rather than burying them under 438 stock libraries.
+        type: string
       kind:
         type: string
       lib:
+        type: string
+      source:
         type: string
       with_source:
         type: integer
@@ -449,6 +516,14 @@ definitions:
         description: Primary MPN/manufacturer and bin, for the parts list (from List's
           laterals).
         type: string
+      reference_only:
+        description: |-
+          ReferenceOnly marks a part recorded but not owned: researched for a future
+          design, remembered as an alternative, or waiting to be ordered. It is about
+          intent, not the current count, which is why it cannot be derived from
+          total_stock — a part drained to zero looks identical to one that never
+          arrived.
+        type: boolean
       total_stock:
         description: Joined / computed, populated on some reads.
         type: number
@@ -476,6 +551,97 @@ definitions:
         type: string
       part_name:
         type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.PartMatch:
+    properties:
+      alternatives:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PartAlternative'
+        type: array
+      barcode:
+        type: string
+      category_id:
+        type: string
+      created_at:
+        type: string
+      default_location_id:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      image_path:
+        type: string
+      ipn:
+        description: FireBin internal part number
+        type: string
+      is_assembly:
+        type: boolean
+      is_component:
+        type: boolean
+      is_purchaseable:
+        type: boolean
+      is_template:
+        type: boolean
+      is_trackable:
+        type: boolean
+      keywords:
+        type: string
+      kicad_footprint:
+        description: e.g. "Resistor_SMD:R_0603_1608Metric"
+        type: string
+      kicad_symbol:
+        description: KiCad LIB_ID, e.g. "Device:R"
+        type: string
+      manufacturer_parts:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.ManufacturerPart'
+        type: array
+      matched_parameters:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PartParameter'
+        type: array
+      minimum_stock:
+        type: number
+      name:
+        type: string
+      package:
+        type: string
+      parameters:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PartParameter'
+        type: array
+      primary_location:
+        type: string
+      primary_location_id:
+        type: string
+      primary_manufacturer:
+        type: string
+      primary_mpn:
+        description: Primary MPN/manufacturer and bin, for the parts list (from List's
+          laterals).
+        type: string
+      reference_only:
+        description: |-
+          ReferenceOnly marks a part recorded but not owned: researched for a future
+          design, remembered as an alternative, or waiting to be ordered. It is about
+          intent, not the current count, which is why it cannot be derived from
+          total_stock — a part drained to zero looks identical to one that never
+          arrived.
+        type: boolean
+      total_stock:
+        description: Joined / computed, populated on some reads.
+        type: number
+      updated_at:
+        type: string
+      variant_count:
+        type: integer
+      variant_of:
+        type: string
+      variants:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Part'
+        type: array
     type: object
   github_com_firelabsca_firebin-api_internal_models.PartParameter:
     properties:
@@ -551,6 +717,16 @@ definitions:
     type: object
   github_com_firelabsca_firebin-api_internal_models.PickUnmatched:
     properties:
+      footprint:
+        description: |-
+          What the BOM says about the part, carried through rather than dropped.
+          An unmatched line is the one a caller most needs detail on: it is the
+          thing to go and buy, and the MPN is usually sitting right there on it.
+        type: string
+      manufacturer:
+        type: string
+      mpn:
+        type: string
       quantity:
         description: total needed across the whole build
         type: integer
@@ -898,6 +1074,267 @@ paths:
       summary: Get asset
       tags:
       - projects
+  /assistant/ask:
+    post:
+      consumes:
+      - application/json
+      description: Answer one question about the inventory, using the configured AI
+        provider and the read-only inventory tools. Returns the answer with the tool
+        calls it made, so the answer can be checked.
+      parameters:
+      - description: The question
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Ask the assistant
+      tags:
+      - assistant
+  /assistant/conversations:
+    get:
+      description: List the calling user's assistant conversations, most recently
+        used first.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Conversation'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List assistant conversations
+      tags:
+      - assistant
+  /assistant/conversations/{id}:
+    delete:
+      description: Delete one of the calling user's conversations and its messages.
+      parameters:
+      - description: Conversation id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete an assistant conversation
+      tags:
+      - assistant
+    get:
+      description: Get one conversation with its messages in order.
+      parameters:
+      - description: Conversation id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Conversation'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get an assistant conversation
+      tags:
+      - assistant
+  /assistant/messages:
+    post:
+      consumes:
+      - application/json
+      description: Answer a question, continuing an existing conversation or starting
+        a new one, and store the exchange with what it cost.
+      parameters:
+      - description: The question
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Ask the assistant in a conversation
+      tags:
+      - assistant
+  /assistant/messages/stream:
+    post:
+      consumes:
+      - application/json
+      description: Answer a question and stream the reply as server-sent events. Emits
+        text fragments, the tools being run, and a final event carrying the stored
+        turn.
+      parameters:
+      - description: The question
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Ask the assistant, streamed
+      tags:
+      - assistant
+  /assistant/status:
+    get:
+      description: Whether the assistant is switched on and has a usable provider.
+        Readable by any signed-in user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Assistant availability
+      tags:
+      - assistant
+  /assistant/usage:
+    get:
+      description: Token and cost totals for the calling user, including turns that
+        failed.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.AssistantUsage'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Assistant usage
+      tags:
+      - assistant
   /auth/login:
     post:
       consumes:
@@ -1565,6 +2002,52 @@ paths:
       tags:
       - backup
   /kicad/libraries:
+    delete:
+      description: Remove every symbol or footprint in a library, or a single one
+        when name is given.
+      parameters:
+      - description: symbol or footprint
+        in: query
+        name: kind
+        required: true
+        type: string
+      - description: Library name
+        in: query
+        name: lib
+        required: true
+        type: string
+      - description: One item; omit to delete the whole library
+        in: query
+        name: name
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a KiCad library or one of its items
+      tags:
+      - kicad
     get:
       description: List indexed KiCad libraries and how many items each holds.
       parameters:
@@ -1657,7 +2140,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Drop items not in this scan and record provenance.
+      description: 'Record provenance for a finished scan. Importing never deletes:
+        an item already in the index is kept unless the batch asked to overwrite it.'
       parameters:
       - description: scan_id, source, kicad_version
         in: body
@@ -1712,6 +2196,44 @@ paths:
       security:
       - BearerAuth: []
       summary: List items in a KiCad library
+      tags:
+      - kicad
+  /kicad/libraries/rename:
+    post:
+      consumes:
+      - application/json
+      description: Move every symbol or footprint from one library name to another.
+        Merging into an existing library is allowed; an item whose name is already
+        taken there stays where it is.
+      parameters:
+      - description: kind, lib and the new name
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Rename a KiCad library
       tags:
       - kicad
   /kicad/libraries/search:
@@ -3319,6 +3841,60 @@ paths:
       summary: List low-stock parts
       tags:
       - dashboard
+  /parts/search:
+    get:
+      description: Search parts by package and parameter value, with unit-aware numeric
+        matching. A value of "220 ohm" will not match a 100 kΩ part, and a bare "220"
+        matches the magnitude shown on the part regardless of unit.
+      parameters:
+      - description: Category id filter
+        in: query
+        name: category
+        type: string
+      - description: Free text over name, keywords, IPN and MPN
+        in: query
+        name: search
+        type: string
+      - description: Package substring, e.g. 0603
+        in: query
+        name: package
+        type: string
+      - description: Restrict the value filter to a named parameter, e.g. Resistance
+        in: query
+        name: parameter
+        type: string
+      - description: Parameter value, e.g. 220, 220 ohm, 4.7uF, X7R
+        in: query
+        name: value
+        type: string
+      - description: Maximum parts to return (default 200, max 500)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.PartMatch'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Search parts by specification
+      tags:
+      - parts
   /projects:
     get:
       description: Return all projects.
@@ -3803,6 +4379,152 @@ paths:
       summary: Scan barcode
       tags:
       - scan
+  /settings/ai:
+    get:
+      description: Get the assistant's enabled state, the active provider, and every
+        provider's configuration with secrets masked.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get AI settings
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: Update the enable toggle, the active provider, or one provider's
+        configuration. Omitted fields are left unchanged. A secret submitted as the
+        mask value is ignored rather than saved.
+      parameters:
+      - description: Settings to change
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update AI settings
+      tags:
+      - settings
+  /settings/ai/{name}/models:
+    get:
+      description: Ask a provider which models its host has available. Returns an
+        empty list when the provider cannot enumerate or its host is unreachable.
+      parameters:
+      - description: Provider name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List a provider's models
+      tags:
+      - settings
+  /settings/ai/{name}/test:
+    post:
+      description: Send one probe request to a provider to check its credentials,
+        model, and whether the model calls tools. Returns 200 with ok=false when the
+        provider rejects the call.
+      parameters:
+      - description: Provider name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Test an AI provider
+      tags:
+      - settings
   /settings/enrichment:
     get:
       description: Report each enrichment provider's configuration without exposing

@@ -14,6 +14,7 @@ import (
 	"github.com/firelabsca/firebin-api/internal/api/respond"
 	"github.com/firelabsca/firebin-api/internal/kicad"
 	"github.com/firelabsca/firebin-api/internal/models"
+	"github.com/firelabsca/firebin-api/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -234,6 +235,10 @@ func (h *Handler) GetKicadIndexMeta(w http.ResponseWriter, r *http.Request) {
 type scanBatchRequest struct {
 	ScanID uuid.UUID                   `json:"scan_id"`
 	Items  []models.KicadLibraryUpload `json:"items"`
+	// Overwrite replaces a symbol or footprint already stored under the same
+	// library and name. Off by default: importing a folder is not a reason to
+	// replace something already curated here.
+	Overwrite bool `json:"overwrite"`
 }
 
 // UploadKicadLibraryBatch stores one chunk of a scan.
@@ -262,12 +267,14 @@ func (h *Handler) UploadKicadLibraryBatch(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
-	n, err := h.KicadLib.UpsertBatch(r.Context(), req.ScanID, req.Items)
+	stored, skipped, err := h.KicadLib.UpsertBatch(r.Context(), req.ScanID, req.Items, req.Overwrite)
 	if err != nil {
 		respond.Error(w, http.StatusInternalServerError, "could not store batch: "+err.Error())
 		return
 	}
-	respond.JSON(w, http.StatusOK, map[string]any{"stored": n})
+	// skipped is reported rather than folded into stored: "imported 4" when
+	// three of them already existed and were left alone is a lie by omission.
+	respond.JSON(w, http.StatusOK, map[string]any{"stored": stored, "skipped": skipped})
 }
 
 type scanFinishRequest struct {
@@ -276,9 +283,9 @@ type scanFinishRequest struct {
 	KicadVersion string    `json:"kicad_version"`
 }
 
-// FinishKicadLibraryScan swaps the uploaded scan in and drops everything else.
+// FinishKicadLibraryScan commits an uploaded scan.
 // @Summary     Finish a KiCad library scan
-// @Description Drop items not in this scan and record provenance.
+// @Description Record provenance for a finished scan. Importing never deletes: an item already in the index is kept unless the batch asked to overwrite it.
 // @Tags        kicad
 // @Security    BearerAuth
 // @Accept      json
@@ -407,4 +414,90 @@ func (h *Handler) ListKicadUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.JSON(w, http.StatusOK, out)
+}
+
+type renameLibraryRequest struct {
+	Kind string `json:"kind"`
+	Lib  string `json:"lib"`
+	Name string `json:"name"`
+}
+
+// RenameKicadLibrary changes a library's name.
+//
+// The name comes from the file it was imported from, which is often a datestamp
+// or the word "footprints", and it is the name KiCad matches on. Admin-only
+// because it changes what every workstation resolves against.
+// @Summary     Rename a KiCad library
+// @Description Move every symbol or footprint from one library name to another. Merging into an existing library is allowed; an item whose name is already taken there stays where it is.
+// @Tags        kicad
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true  "kind, lib and the new name"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /kicad/libraries/rename  [post]
+func (h *Handler) RenameKicadLibrary(w http.ResponseWriter, r *http.Request) {
+	var req renameLibraryRequest
+	if !respond.Decode(w, r, &req) {
+		return
+	}
+	req.Lib = strings.TrimSpace(req.Lib)
+	req.Name = strings.TrimSpace(req.Name)
+	if !validKind(req.Kind) || req.Lib == "" || req.Name == "" {
+		respond.Error(w, http.StatusBadRequest, "kind, lib and name are required")
+		return
+	}
+	if req.Lib == req.Name {
+		respond.JSON(w, http.StatusOK, map[string]any{"moved": 0})
+		return
+	}
+	moved, err := h.KicadLib.RenameLibrary(r.Context(), req.Kind, req.Lib, req.Name)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not rename: "+err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]any{"moved": moved})
+}
+
+// DeleteKicadLibraryItems removes a whole library, or one item from it.
+// @Summary     Delete a KiCad library or one of its items
+// @Description Remove every symbol or footprint in a library, or a single one when name is given.
+// @Tags        kicad
+// @Security    BearerAuth
+// @Produce     json
+// @Param       kind  query     string  true   "symbol or footprint"
+// @Param       lib   query     string  true   "Library name"
+// @Param       name  query     string  false  "One item; omit to delete the whole library"
+// @Success     200  {object}  map[string]interface{}
+// @Failure     400  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Failure     404  {object}  map[string]interface{}
+// @Router      /kicad/libraries  [delete]
+func (h *Handler) DeleteKicadLibraryItems(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	kind, lib, name := q.Get("kind"), strings.TrimSpace(q.Get("lib")), strings.TrimSpace(q.Get("name"))
+	if !validKind(kind) || lib == "" {
+		respond.Error(w, http.StatusBadRequest, "kind and lib are required")
+		return
+	}
+	if name != "" {
+		if err := h.KicadLib.DeleteItem(r.Context(), kind, lib, name); err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				respond.Error(w, http.StatusNotFound, "no such item")
+				return
+			}
+			respond.Error(w, http.StatusInternalServerError, "could not delete: "+err.Error())
+			return
+		}
+		respond.JSON(w, http.StatusOK, map[string]any{"deleted": 1})
+		return
+	}
+	n, err := h.KicadLib.DeleteLibrary(r.Context(), kind, lib)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not delete: "+err.Error())
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]any{"deleted": n})
 }

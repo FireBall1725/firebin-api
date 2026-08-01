@@ -88,6 +88,13 @@ func main() {
 		slog.Error("handler init failed", "error", err)
 		os.Exit(1)
 	}
+	// Apply saved AI provider config to the live registry. A failure here is
+	// logged, not fatal: unreadable assistant settings should leave the
+	// assistant off, not stop the inventory from serving.
+	if err := h.AI.Load(baseCtx); err != nil {
+		slog.Warn("could not load AI provider settings; the assistant will stay unconfigured", "error", err)
+	}
+
 	h.Jobs.SetRetention(cfg.TaskRetention)
 	if err := h.Jobs.Start(baseCtx); err != nil {
 		slog.Error("job workers failed to start", "error", err)
