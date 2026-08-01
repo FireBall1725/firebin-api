@@ -1160,8 +1160,17 @@ func (h *Handler) UpdateBOMLine(w http.ResponseWriter, r *http.Request) {
 	if !respond.Decode(w, r, &req) {
 		return
 	}
+	// A lookup failure and a missing row are different answers and were being
+	// given the same one. A column added to the SELECT without a matching scan
+	// destination made every edit on this route return "line not found" for a
+	// line that was plainly on the screen, which sent the search everywhere
+	// except the query that was actually broken.
 	existing, err := h.Projects.GetBOMLine(r.Context(), id)
-	if err != nil || existing == nil {
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not load line: "+err.Error())
+		return
+	}
+	if existing == nil {
 		respond.Error(w, http.StatusNotFound, "line not found")
 		return
 	}
