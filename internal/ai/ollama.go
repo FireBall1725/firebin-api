@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 )
 
@@ -24,6 +25,9 @@ type OllamaProvider struct {
 	base
 	baseURL string
 	model   string
+	// Empty when talking to Ollama directly, which does not authenticate. Set
+	// when pointed at a gateway that fronts it; see the api_key field below.
+	apiKey string
 }
 
 func NewOllamaProvider() *OllamaProvider {
@@ -47,6 +51,12 @@ func (p *OllamaProvider) Info() ProviderInfo {
 				Placeholder: ollamaDefaultModel,
 				HelpText:    "Models pulled on the host are offered once the base URL is reachable.",
 			},
+			{
+				Key: "api_key", Label: "API key", Type: "password", Required: false,
+				HelpText: "Leave empty for a direct connection; Ollama itself does not authenticate. " +
+					"Fill this in when the base URL points at a gateway that fronts Ollama, such as " +
+					"Ollama Admin, whose path-preserving proxy takes a Bearer key and rejects requests without one.",
+			},
 		},
 	}
 }
@@ -54,10 +64,22 @@ func (p *OllamaProvider) Info() ProviderInfo {
 func (p *OllamaProvider) Configure(cfg map[string]string) {
 	p.baseURL = firstNonEmpty(cfg["base_url"], ollamaDefaultBaseURL)
 	p.model = firstNonEmpty(cfg["model"], ollamaDefaultModel)
+	p.apiKey = cfg["api_key"]
+	// Still keyed on the base URL alone: an unauthenticated Ollama is the normal
+	// case, so an empty key must not disable the provider.
 	p.enabled = p.baseURL != ""
 }
 
 func (p *OllamaProvider) ConfiguredModel() string { return p.model }
+
+// setAuth is passed to every request so a gateway in front of Ollama gets the
+// key on the chat path, the streaming path and the model listing alike. Sending
+// nothing when unset keeps a direct connection byte-identical to before.
+func (p *OllamaProvider) setAuth(h http.Header) {
+	if p.apiKey != "" {
+		h.Set("Authorization", "Bearer "+p.apiKey)
+	}
+}
 
 type ollamaToolCall struct {
 	Function struct {
@@ -141,7 +163,7 @@ func (p *OllamaProvider) Chat(ctx context.Context, req ChatRequest) (*ChatRespon
 	body := p.buildRequest(req)
 
 	var out ollamaResponse
-	if err := postJSON(ctx, strings.TrimSuffix(p.baseURL, "/")+"/api/chat", body, &out, nil); err != nil {
+	if err := postJSON(ctx, strings.TrimSuffix(p.baseURL, "/")+"/api/chat", body, &out, p.setAuth); err != nil {
 		return nil, fmt.Errorf("ollama: %w", err)
 	}
 	if out.Error != "" {
@@ -176,7 +198,7 @@ func (p *OllamaProvider) ListModels(ctx context.Context) ([]string, error) {
 			Name string `json:"name"`
 		} `json:"models"`
 	}
-	if err := getJSON(ctx, strings.TrimSuffix(p.baseURL, "/")+"/api/tags", &out, nil); err != nil {
+	if err := getJSON(ctx, strings.TrimSuffix(p.baseURL, "/")+"/api/tags", &out, p.setAuth); err != nil {
 		return nil, fmt.Errorf("ollama: %w", err)
 	}
 	names := make([]string, 0, len(out.Models))
@@ -200,7 +222,7 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req ChatRequest, onText
 	var toolCalls []ollamaToolCall
 	var doneReason string
 
-	err := streamLines(ctx, strings.TrimSuffix(p.baseURL, "/")+"/api/chat", body, nil, func(line string) error {
+	err := streamLines(ctx, strings.TrimSuffix(p.baseURL, "/")+"/api/chat", body, p.setAuth, func(line string) error {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			return nil

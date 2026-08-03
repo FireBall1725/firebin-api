@@ -245,6 +245,70 @@ func TestLocalProviderReportsAKnownZeroCost(t *testing.T) {
 	}
 }
 
+// Ollama does not authenticate, but a gateway in front of it does. Ollama Admin
+// rejects a keyless request to its proxy with 401 before the request is ever
+// forwarded, so the key has to reach every path the provider uses, not just the
+// chat one: a working chat with a 401 model dropdown is the failure this pins.
+func TestOllamaSendsAPIKeyOnEveryPath(t *testing.T) {
+	seen := map[string]string{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen[r.URL.Path] = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/tags" {
+			_, _ = io.WriteString(w, `{"models":[{"name":"qwen3:8b"}]}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"message":{"role":"assistant","content":"hi"},
+			"done_reason":"stop","prompt_eval_count":1,"eval_count":1}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewOllamaProvider()
+	p.Configure(map[string]string{"base_url": srv.URL, "api_key": "oa-secret"})
+
+	ctx := context.Background()
+	req := ChatRequest{Messages: []Message{{Role: RoleUser, Text: "hi"}}}
+	if _, err := p.Chat(ctx, req); err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if _, err := p.ListModels(ctx); err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+	if _, err := p.ChatStream(ctx, req, func(string) {}); err != nil {
+		t.Fatalf("ChatStream: %v", err)
+	}
+
+	for _, path := range []string{"/api/chat", "/api/tags"} {
+		if got := seen[path]; got != "Bearer oa-secret" {
+			t.Errorf("%s Authorization = %q, want the bearer key", path, got)
+		}
+	}
+}
+
+// A direct connection must stay exactly as it was: Ollama itself authenticates
+// nothing, and an empty key must send no header rather than an empty one.
+func TestOllamaSendsNoAuthHeaderWithoutAKey(t *testing.T) {
+	var hadHeader bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, hadHeader = r.Header["Authorization"]
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"message":{"role":"assistant","content":"hi"},
+			"done_reason":"stop","prompt_eval_count":1,"eval_count":1}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewOllamaProvider()
+	p.Configure(map[string]string{"base_url": srv.URL})
+	if _, err := p.Chat(context.Background(), ChatRequest{
+		Messages: []Message{{Role: RoleUser, Text: "hi"}},
+	}); err != nil {
+		t.Fatalf("Chat: %v", err)
+	}
+	if hadHeader {
+		t.Error("an unset key must send no Authorization header at all")
+	}
+}
+
 func TestOllamaWireFormat(t *testing.T) {
 	srv, got := fakeProvider(t, `{"message":{"role":"assistant","content":"",
 		"tool_calls":[{"function":{"name":"search_parts","arguments":{"package":"0603"}}}]},
