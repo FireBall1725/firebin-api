@@ -466,6 +466,16 @@ func (h *Handler) applyEnrichment(ctx context.Context, part *models.Part, primar
 		if primary.ManufacturerName != nil {
 			mfg = *primary.ManufacturerName
 		}
+		// Fall back to the brand the provider reported. UpdateManufacturerPart
+		// writes manufacturer_id = NULL for an empty name, so without this an MPN
+		// that arrived without a brand got its null rewritten on every enrichment
+		// and could never fill in. A part created by the assistant is always in
+		// that state: ReferencePartInput carries no manufacturer, so the row is
+		// born with a null one. The stored value still wins where there is one,
+		// since a person may have corrected it.
+		if mfg == "" {
+			mfg = strings.TrimSpace(en.Manufacturer)
+		}
 		_ = h.Catalog.UpdateManufacturerPart(ctx, primary.ID, mfg, primary.MPN, &en.DatasheetURL)
 	}
 	for _, s := range en.Suppliers {

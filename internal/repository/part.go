@@ -94,8 +94,12 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 		mpj.mpn, mpj.mfr, locj.name, locj.id
 		FROM parts
 		LEFT JOIN LATERAL (
+			-- LEFT, not inner: manufacturer_id is nullable, and an MPN recorded
+			-- without a brand is still the most useful thing on the row. An inner
+			-- join drops the whole lateral, so a missing manufacturer took the
+			-- part number down with it and the row showed neither.
 			SELECT mp.mpn, m.name AS mfr FROM manufacturer_parts mp
-			JOIN manufacturers m ON m.id = mp.manufacturer_id
+			LEFT JOIN manufacturers m ON m.id = mp.manufacturer_id
 			WHERE mp.part_id = parts.id ORDER BY mp.created_at LIMIT 1
 		) mpj ON true
 		LEFT JOIN LATERAL (
@@ -224,8 +228,10 @@ func (r *PartRepo) Get(ctx context.Context, id uuid.UUID) (*models.Part, error) 
 		SELECT mpj.mpn, mpj.mfr, locj.name, locj.id
 		FROM (SELECT $1::uuid AS pid) base
 		LEFT JOIN LATERAL (
+			-- LEFT, not inner, for the same reason as List: a null manufacturer_id
+			-- must not hide the part number.
 			SELECT mp.mpn, m.name AS mfr FROM manufacturer_parts mp
-			JOIN manufacturers m ON m.id = mp.manufacturer_id
+			LEFT JOIN manufacturers m ON m.id = mp.manufacturer_id
 			WHERE mp.part_id = base.pid ORDER BY mp.created_at LIMIT 1
 		) mpj ON true
 		LEFT JOIN LATERAL (
