@@ -115,7 +115,15 @@ type ProviderStatus struct {
 
 // Status returns every provider with its masked config.
 func (s *Service) Status(ctx context.Context) ([]ProviderStatus, error) {
-	active := s.registry.ActiveName()
+	// Both halves of this page come from the store, so it cannot contradict
+	// itself. Reading the selection from the registry and the fields from the
+	// database meant that anything writing settings from outside this service,
+	// a restore being the obvious one, left the dropdown showing the provider
+	// chosen at boot next to the configuration of a different one.
+	active, err := s.get(ctx, SettingActiveProvider)
+	if err != nil {
+		return nil, err
+	}
 	all := s.registry.All()
 	out := make([]ProviderStatus, 0, len(all))
 	for _, p := range all {

@@ -215,3 +215,67 @@ func TestAProviderWithNoKeyIsNotEnabled(t *testing.T) {
 		}
 	}
 }
+
+// Settings written straight into the store, as a restore does, must not leave
+// the page and the live provider disagreeing.
+//
+// instance_settings is part of the backup, so importing one replaces the
+// assistant's configuration underneath a registry that Load populates once at
+// boot. Status used to read the active provider from that registry and each
+// provider's fields from the store, so after a restore the page showed the
+// provider chosen before the restore next to the configuration of a different
+// one, and chat still went wherever the boot-time config pointed.
+//
+// The reported symptom was the worst version of this: the Ollama URL on screen
+// was the right one, and every request went to the old one.
+func TestRestoredSettingsAreNotContradictedByBootState(t *testing.T) {
+	svc, store := testService(t)
+	ctx := context.Background()
+
+	// What the instance looked like before the restore, applied the normal way.
+	if err := svc.Configure(ctx, "ollama", map[string]string{
+		"base_url": "http://10.0.1.50:11434", "model": "old-model",
+	}); err != nil {
+		t.Fatalf("Configure: %v", err)
+	}
+	if err := svc.SetActive(ctx, "anthropic"); err != nil {
+		t.Fatalf("SetActive: %v", err)
+	}
+
+	// A restore writes rows directly; it never goes through Configure.
+	store.m[SettingProviderPrefix+"ollama"] = `{"base_url":"http://10.0.1.191:11434","model":"gpt-oss:latest"}`
+	store.m[SettingActiveProvider] = "ollama"
+
+	// The page must report the restored state, both halves from the same place.
+	status, err := svc.Status(ctx)
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	for _, p := range status {
+		if p.Name != "ollama" {
+			if p.Active {
+				t.Errorf("%s still shows as active after the restore chose ollama", p.Name)
+			}
+			continue
+		}
+		if !p.Active {
+			t.Error("ollama is the restored selection but the page does not show it as active")
+		}
+		if got := p.Config["base_url"]; got != "http://10.0.1.191:11434" {
+			t.Errorf("base_url on the page = %q, want the restored one", got)
+		}
+	}
+
+	// And the live provider has to agree, which is what the import handler's
+	// reload is for. Before it, this is where the old URL survived.
+	if err := svc.Load(ctx); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	active := svc.Registry().Active()
+	if active == nil {
+		t.Fatal("no active provider after reloading the restored settings")
+	}
+	if active.Info().Name != "ollama" {
+		t.Errorf("active provider = %q, want ollama", active.Info().Name)
+	}
+}

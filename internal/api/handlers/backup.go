@@ -6,6 +6,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/firelabsca/firebin-api/internal/api/respond"
@@ -90,6 +91,22 @@ func (h *Handler) ImportData(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "could not import: "+err.Error())
 		return
 	}
+	// instance_settings is in the backup, so an import replaces the assistant's
+	// provider config underneath a registry that was populated once at boot.
+	// Without this the restored rows are in the database and the running process
+	// is still using what it read at startup: the settings page shows the URL
+	// from the backup while every request goes to the old one, which reads as
+	// the app ignoring its own settings.
+	//
+	// Logged rather than fatal, matching boot: the data restored fine, and an
+	// unreadable provider config should leave the assistant unconfigured rather
+	// than fail a restore that worked.
+	if h.AI != nil {
+		if err := h.AI.Load(r.Context()); err != nil {
+			slog.Warn("import restored settings but the AI registry could not be reloaded; restart to pick them up", "error", err)
+		}
+	}
+
 	var total int64
 	for _, c := range counts {
 		total += c
