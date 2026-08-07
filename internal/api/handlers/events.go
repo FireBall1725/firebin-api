@@ -33,8 +33,10 @@ func (h *Handler) Events(w http.ResponseWriter, r *http.Request) {
 	ch, unsubscribe := h.Bus.Subscribe()
 	defer unsubscribe()
 
-	// Open the stream so the client's onopen fires promptly.
-	fmt.Fprint(w, ": connected\n\n")
+	// Open the stream so the client's onopen fires promptly. A write error
+	// here surfaces through the Flush below, which is the one that decides
+	// whether this connection can stream at all.
+	_, _ = fmt.Fprint(w, ": connected\n\n")
 	if err := rc.Flush(); err != nil {
 		return // ResponseWriter can't flush — cannot stream
 	}
