@@ -1,46 +1,22 @@
 name: CI
 
+# The jobs live in FireBall1725/workflows so every Go repo runs the same ones.
+# Change them there, not here.
+
 on:
   push:
     branches: [main]
   pull_request:
 
-jobs:
-  build-test:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: firebin
-          POSTGRES_PASSWORD: firebin
-          POSTGRES_DB: firebin
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U firebin"
-          --health-interval 5s --health-timeout 5s --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - run: go build ./...
-      - run: go vet ./...
-      - name: Test
-        env:
-          DATABASE_URL: postgres://firebin:firebin@localhost:5432/firebin?sslmode=disable
-          JWT_SECRET: ci-test-secret
-        run: go test ./...
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-      - uses: golangci/golangci-lint-action@v8
-        with:
-          version: v2.11.4
+jobs:
+  ci:
+    uses: FireBall1725/workflows/.github/workflows/ci-go.yml@v1
+    with:
+      postgres-db: firebin
+      test-env: |
+        DATABASE_URL=postgres://firebin:firebin@localhost:5432/firebin?sslmode=disable
+        JWT_SECRET=ci-test-secret

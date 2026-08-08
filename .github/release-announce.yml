@@ -1,0 +1,33 @@
+# Drives the Discord post in #releases. Field list and placeholders:
+# https://github.com/FireBall1725/workflows/blob/main/templates/release-announce.yml.example
+
+project:
+  name: FireBin API
+  emoji: "🔥"
+  footer: "FireBin · self-hosted electronics parts inventory"
+
+channels:
+  stable:
+    announce: true
+    colour: "0x2ECC71"
+    prefix: ""
+  rc:
+    announce: true
+    colour: "0xF1C40F"
+    prefix: "Release candidate — "
+  nightly:
+    announce: false
+
+getting_started: |
+  ```
+  docker pull {{image}}
+  ```
+  Self-hosters: bump the tag in `deploy/docker-compose.yml`.
+
+links:
+  - name: Source
+    url: https://github.com/{{repo}}
+  - name: API docs
+    url: https://fireball1725.github.io/firebin-api/
+  - name: Changes
+    url: "{{compare_url}}"
