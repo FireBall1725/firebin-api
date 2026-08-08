@@ -44,8 +44,10 @@ indent_size = unset
 indent_style = unset
 
 # Files whose bytes belong to a tool, not to us. Xcode rewrites pbxproj on
-# every project change and will happily undo anything done here.
-[{*.pbxproj,*.xcscheme,*.plist,appcast.xml,appcast-prerelease.xml}]
+# every project change and will happily undo anything done here, and the XML in
+# these repos is vendored or generated data (glabels label catalogues, the
+# Sparkle appcast) rather than anything anyone formats by hand.
+[{*.pbxproj,*.xcscheme,*.plist,*.xml}]
 indent_style = unset
 indent_size = unset
 trim_trailing_whitespace = false
