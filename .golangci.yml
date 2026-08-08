@@ -1,6 +1,12 @@
-# golangci-lint v2 configuration for firebin-api.
+# Shared golangci-lint config. Copied into every Go repo by scaffold.sh; do not
+# hand-edit a copy.
 #
-# Keep this in step with the runner pinned in .github/workflows/ci.yml:
+# Generalised from firebin-api's hand-tuned config, which was the best of the
+# five in the tree. librarium-mcp and firebin-mcp were missing the `formatters`
+# block entirely, so gofmt was not gated there despite the rest of the config
+# being near-identical.
+#
+# Keep in step with the runner pinned in the workflows repo's ci-go.yml:
 # golangci-lint-action@v8 with version v2.11.4. Older action majors install a
 # v1 binary, which rejects this file outright with "unsupported version of the
 # configuration".
@@ -8,15 +14,14 @@
 # What's enabled:
 #
 #   standard set: errcheck, govet, ineffassign, staticcheck, unused
-#   bodyclose:    the provider adapters (Digi-Key, Nexar, Ollama) are HTTP
-#                 clients; a leaked response body leaks a file descriptor per
-#                 enrichment call
+#   bodyclose:    the provider adapters are HTTP clients; a leaked response
+#                 body leaks a file descriptor per call
 #   misspell:     typos in user-facing strings, doc comments, errors
 #
 # What's disabled (and why):
 #
 #   gocritic    — worth having, but it flags a batch of stylistic issues across
-#                 the existing tree. Re-enable in a focused cleanup PR rather
+#                 the existing trees. Re-enable in a focused cleanup PR rather
 #                 than burying the findings in an unrelated diff.
 version: "2"
 
@@ -49,12 +54,8 @@ linters:
       exclude-functions:
         - (github.com/jackc/pgx/v5.Tx).Rollback
         - (github.com/jackc/pgx/v5.Rows).Close
-        # Same idiom as Rows.Close, for the batched path in the KiCad
-        # repository: the per-Exec errors are what carry the failure.
         - (github.com/jackc/pgx/v5.BatchResults).Close
         - (net/http.ResponseWriter).Write
-        # Deferred Close on a gzip reader after ReadAll has already returned
-        # whatever went wrong.
         - (*compress/gzip.Reader).Close
         # Deferred Close on file handles, response bodies, and other
         # io.Closer implementations — convention is to ignore the close
