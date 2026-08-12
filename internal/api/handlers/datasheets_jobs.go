@@ -6,9 +6,11 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"path"
 	"strings"
 	"time"
@@ -302,17 +304,48 @@ func (h *Handler) ExtractDatasheetText(w http.ResponseWriter, r *http.Request) {
 // 200 with an HTML "product not found" page, and storing that would produce a
 // library full of documents that open to nothing. Failing here instead leaves
 // the vendor URL in place and the part honestly marked as un-mirrored.
-func (h *Handler) fetchDatasheet(ctx context.Context, url string) ([]byte, error) {
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		return nil, fmt.Errorf("unsupported datasheet URL")
+func (h *Handler) fetchDatasheet(ctx context.Context, rawURL string) ([]byte, error) {
+	url, err := normalizeDatasheetURL(rawURL)
+	if err != nil {
+		return nil, err
 	}
 	maxBytes := h.maxDatasheetBytes(ctx)
 
+	// One retry, for transient failures only. Manufacturer CDNs drop
+	// connections and reset HTTP/2 streams often enough that a single blip
+	// should not permanently mark a part as un-mirrorable, but a 403 or a 404
+	// means the same thing however many times you ask.
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(2 * time.Second):
+			}
+		}
+		content, err := h.fetchDatasheetOnce(ctx, url, maxBytes)
+		if err == nil {
+			return content, nil
+		}
+		lastErr = err
+		if !isRetriableFetch(err) {
+			return nil, err
+		}
+	}
+	return nil, lastErr
+}
+
+// fetchDatasheetOnce is a single attempt.
+func (h *Handler) fetchDatasheetOnce(ctx context.Context, url string, maxBytes int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	// Some manufacturer CDNs serve a challenge page to an unrecognised client.
+	// An honest User-Agent, on purpose. Some manufacturer CDNs refuse anything
+	// that is not a browser, and the answer to that is to report the refusal
+	// clearly (see the 403 case below) rather than to claim to be Chrome. The
+	// vendor link still works in a browser, and the part keeps it.
 	req.Header.Set("User-Agent", "FireBin/1.0 (+https://github.com/FireBall1725/firebin)")
 	req.Header.Set("Accept", "application/pdf,*/*")
 
@@ -322,7 +355,18 @@ func (h *Handler) fetchDatasheet(ctx context.Context, url string) ([]byte, error
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		// fall through
+	case http.StatusForbidden, http.StatusUnauthorized:
+		// Worth its own message: nothing is broken and retrying will not help.
+		// The vendor is refusing automated downloads, and the datasheet link on
+		// the part still opens fine in a browser.
+		return nil, fmt.Errorf("the vendor refused an automated download (%d); the datasheet link still works in a browser, so open it and upload the PDF if you want a copy", resp.StatusCode)
+	case http.StatusNotFound, http.StatusGone:
+		return nil, fmt.Errorf("the datasheet URL is dead (%d)", resp.StatusCode)
+	default:
 		return nil, fmt.Errorf("datasheet URL returned %d", resp.StatusCode)
 	}
 
@@ -337,6 +381,65 @@ func (h *Handler) fetchDatasheet(ctx context.Context, url string) ([]byte, error
 		return nil, fmt.Errorf("the URL did not return a PDF (likely a dead link serving an error page)")
 	}
 	return content, nil
+}
+
+// normalizeDatasheetURL accepts the URL shapes providers actually return.
+//
+// A protocol-relative URL ("//host/path") is the common one: it is legal in a
+// page where the scheme is inherited, and several distributors store their
+// datasheet links that way. Rejecting it lost real datasheets for no reason.
+func normalizeDatasheetURL(raw string) (string, error) {
+	u := strings.TrimSpace(raw)
+	if u == "" {
+		return "", fmt.Errorf("no datasheet URL")
+	}
+	if strings.HasPrefix(u, "//") {
+		u = "https:" + u
+	}
+	parsed, err := neturl.Parse(u)
+	if err != nil {
+		return "", fmt.Errorf("could not read the datasheet URL: %v", err)
+	}
+	switch parsed.Scheme {
+	case "http", "https":
+	case "":
+		return "", fmt.Errorf("the datasheet URL has no scheme, so it cannot be fetched: %q", raw)
+	default:
+		// ftp:// still shows up on older manufacturer sites. Say which scheme
+		// rather than a bare "unsupported", so the cause is obvious.
+		return "", fmt.Errorf("cannot download over %q; only http and https are supported", parsed.Scheme)
+	}
+	if parsed.Host == "" {
+		return "", fmt.Errorf("the datasheet URL has no host: %q", raw)
+	}
+	return parsed.String(), nil
+}
+
+// isRetriableFetch reports whether an error is worth one more attempt.
+//
+// Transport-level failures only. Every status-code case above is already a
+// settled answer, and retrying a 403 just asks a CDN to refuse twice.
+func isRetriableFetch(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var urlErr *neturl.Error
+	if errors.As(err, &urlErr) {
+		return true
+	}
+	// http2 stream resets surface as a plain error string with no typed form to
+	// match on, and Molex served exactly this: "stream error: stream ID 1;
+	// INTERNAL_ERROR; received from peer".
+	s := err.Error()
+	for _, frag := range []string{"stream error", "connection reset", "unexpected EOF", "EOF", "broken pipe", "no such host", "i/o timeout"} {
+		if strings.Contains(s, frag) {
+			return true
+		}
+	}
+	return false
 }
 
 // datasheetFilename picks a display name from the URL, falling back to the MPN.
