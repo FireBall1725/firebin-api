@@ -87,6 +87,13 @@ type Part struct {
 	PrimaryManufacturer string     `json:"primary_manufacturer,omitempty"`
 	PrimaryLocation     *string    `json:"primary_location,omitempty"`
 	PrimaryLocationID   *uuid.UUID `json:"primary_location_id,omitempty"`
+
+	// HasDatasheet reports whether a stored PDF is linked to this part, so the
+	// parts list and the command palette can offer to open it without a
+	// per-row fetch. Populated by the list queries only; false elsewhere.
+	// Not omitempty: the client distinguishes "no datasheet" from "not asked",
+	// and omitempty would erase the false.
+	HasDatasheet bool `json:"has_datasheet"`
 }
 
 // PartAlternative is a similar part suggested by enrichment, linked to an

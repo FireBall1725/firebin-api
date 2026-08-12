@@ -154,6 +154,27 @@ func (r *CatalogRepo) ListManufacturerParts(ctx context.Context, partID uuid.UUI
 	return out, nil
 }
 
+// GetManufacturerPart returns one MPN row by id, or nil when it does not exist.
+// Supplier parts are deliberately not loaded: the callers that need this (the
+// datasheet mirror endpoint) want the MPN and its datasheet URL, not pricing.
+func (r *CatalogRepo) GetManufacturerPart(ctx context.Context, id uuid.UUID) (*models.ManufacturerPart, error) {
+	var mp models.ManufacturerPart
+	err := r.pool.QueryRow(ctx, `
+		SELECT mp.id, mp.part_id, mp.manufacturer_id, m.name, mp.mpn, mp.description, mp.datasheet_url, mp.created_at
+		FROM manufacturer_parts mp
+		LEFT JOIN manufacturers m ON m.id = mp.manufacturer_id
+		WHERE mp.id = $1`, id).Scan(&mp.ID, &mp.PartID, &mp.ManufacturerID, &mp.ManufacturerName,
+		&mp.MPN, &mp.Description, &mp.DatasheetURL, &mp.CreatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	mp.SupplierParts = []models.SupplierPart{}
+	return &mp, nil
+}
+
 func (r *CatalogRepo) CreateManufacturerPart(ctx context.Context, partID uuid.UUID, manufacturerName, mpn string, datasheet *string) (*models.ManufacturerPart, error) {
 	var mfgID *uuid.UUID
 	if manufacturerName != "" {

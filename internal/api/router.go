@@ -118,6 +118,24 @@ func NewRouter(h *handlers.Handler) http.Handler {
 	// Public so it works as a plain <img src>, like the static /symbols/*.svg.
 	mux.HandleFunc("GET /api/v1/parts/{id}/image", h.GetPartImage)
 
+	// Datasheets. Reads stay open to viewers via RequireWriter's method check;
+	// the content route is protected rather than public (unlike the part image,
+	// which has to work as a bare <img src>) because the client fetches it as an
+	// authenticated blob.
+	protected("GET /api/v1/datasheets", h.ListDatasheets)
+	protected("POST /api/v1/datasheets", h.UploadDatasheet)
+	protected("GET /api/v1/datasheets/stats", h.DatasheetStats)
+	protected("POST /api/v1/datasheets/bulk/mirror", h.BulkMirrorDatasheets)
+	protected("POST /api/v1/datasheets/bulk/extract", h.ExtractDatasheetText)
+	protected("POST /api/v1/datasheets/{id}/extract", h.ExtractDatasheetText)
+	protected("GET /api/v1/datasheets/{id}", h.GetDatasheet)
+	protected("PATCH /api/v1/datasheets/{id}", h.UpdateDatasheet)
+	protected("DELETE /api/v1/datasheets/{id}", h.DeleteDatasheet)
+	protected("GET /api/v1/datasheets/{id}/content", h.GetDatasheetContent)
+	protected("POST /api/v1/datasheets/{id}/parts", h.LinkDatasheetPart)
+	protected("DELETE /api/v1/datasheets/{id}/parts/{partID}", h.UnlinkDatasheetPart)
+	protected("POST /api/v1/manufacturer-parts/{id}/datasheet/mirror", h.MirrorDatasheet)
+
 	// Projects → boards → per-board BOM
 	protected("GET /api/v1/projects", h.ListProjects)
 	protected("POST /api/v1/projects", h.CreateProject)
@@ -214,6 +232,11 @@ func NewRouter(h *handlers.Handler) http.Handler {
 
 	admin("GET /api/v1/settings/stock", h.GetStockSettings)
 	admin("PUT /api/v1/settings/stock", h.UpdateStockSettings)
+
+	// Datasheet storage (admin) — auto-mirror is off by default, so a fresh
+	// install never downloads a PDF nobody asked for.
+	admin("GET /api/v1/settings/datasheets", h.GetDatasheetSettings)
+	admin("PUT /api/v1/settings/datasheets", h.UpdateDatasheetSettings)
 	admin("POST /api/v1/stock/cleanup-empty", h.CleanupEmptyLots)
 
 	// Manufacturer & supplier parts (commercial tree)

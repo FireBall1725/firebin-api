@@ -6,6 +6,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/firelabsca/firebin-api/internal/api/respond"
@@ -262,6 +263,91 @@ func (h *Handler) UpdateStockSettings(w http.ResponseWriter, r *http.Request) {
 		_ = h.Settings.Set(r.Context(), "stock.delete_empty_lots", v)
 	}
 	h.GetStockSettings(w, r)
+}
+
+// GetDatasheetSettings returns the datasheet storage toggles plus the library
+// totals, so the settings card can show what the choice is costing on disk.
+// @Summary     Get datasheet settings
+// @Description Return the auto-mirror and text-extraction toggles, the upload size cap, and library totals.
+// @Tags        settings
+// @Security    BearerAuth
+// @Produce     json
+// @Success     200  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /settings/datasheets  [get]
+func (h *Handler) GetDatasheetSettings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	stats, err := h.Datasheets.Stats(ctx)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	maxBytes := h.maxDatasheetBytes(ctx)
+	extract := true // default on; only an explicit "false" turns it off
+	if v, _ := h.Settings.Get(ctx, "datasheets.extract_text"); v == "false" {
+		extract = false
+	}
+	autoMirror := false
+	if v, _ := h.Settings.Get(ctx, "datasheets.auto_mirror"); v == "true" {
+		autoMirror = true
+	}
+	respond.JSON(w, http.StatusOK, map[string]any{
+		"auto_mirror":       autoMirror,
+		"extract_text":      extract,
+		"max_bytes":         maxBytes,
+		"storage_path":      h.DatasheetFiles.Root(),
+		"count":             stats.Count,
+		"total_bytes":       stats.TotalBytes,
+		"unlinked":          stats.Unlinked,
+		"mirror_candidates": stats.MirrorCandidates,
+	})
+}
+
+type datasheetSettingsRequest struct {
+	AutoMirror  *bool  `json:"auto_mirror"`
+	ExtractText *bool  `json:"extract_text"`
+	MaxBytes    *int64 `json:"max_bytes"`
+}
+
+// UpdateDatasheetSettings stores the datasheet storage toggles.
+// @Summary     Update datasheet settings
+// @Description Store the auto-mirror and text-extraction toggles and the upload size cap.
+// @Tags        settings
+// @Security    BearerAuth
+// @Accept      json
+// @Produce     json
+// @Param       request  body      map[string]interface{}  true   "request body"
+// @Success     200      {object}  map[string]interface{}
+// @Failure     400      {object}  map[string]interface{}
+// @Failure     401      {object}  map[string]interface{}
+// @Router      /settings/datasheets  [put]
+func (h *Handler) UpdateDatasheetSettings(w http.ResponseWriter, r *http.Request) {
+	var req datasheetSettingsRequest
+	if !respond.Decode(w, r, &req) {
+		return
+	}
+	ctx := r.Context()
+	if req.AutoMirror != nil {
+		_ = h.Settings.Set(ctx, "datasheets.auto_mirror", boolSetting(*req.AutoMirror))
+	}
+	if req.ExtractText != nil {
+		_ = h.Settings.Set(ctx, "datasheets.extract_text", boolSetting(*req.ExtractText))
+	}
+	if req.MaxBytes != nil {
+		if *req.MaxBytes <= 0 {
+			respond.Error(w, http.StatusBadRequest, "max_bytes must be greater than zero")
+			return
+		}
+		_ = h.Settings.Set(ctx, "datasheets.max_bytes", strconv.FormatInt(*req.MaxBytes, 10))
+	}
+	h.GetDatasheetSettings(w, r)
+}
+
+func boolSetting(v bool) string {
+	if v {
+		return "true"
+	}
+	return "false"
 }
 
 // CleanupEmptyLots purges zero-quantity, non-barcoded lots, but only when the

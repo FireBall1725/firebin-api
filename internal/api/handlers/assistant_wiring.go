@@ -26,6 +26,11 @@ func (h *Handler) assistantToolbox() *assistant.Toolbox {
 		Catalog:    h.Catalog,
 		Projects:   h.Projects,
 
+		// Read-only, like everything else here: the tools can find, search and
+		// read a stored datasheet, and cannot upload, delete, or relink one.
+		Datasheets:    h.Datasheets,
+		DatasheetText: h.DatasheetFiles,
+
 		// Reuses the ordinary lookup chain, including its 30-day cache, so a
 		// repeated question does not spend a second distributor call.
 		Enrich: func(ctx context.Context, mpn string) (*models.EnrichedPart, error) {

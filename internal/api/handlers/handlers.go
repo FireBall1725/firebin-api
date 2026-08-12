@@ -11,6 +11,7 @@ import (
 	"github.com/firelabsca/firebin-api/internal/ai"
 	"github.com/firelabsca/firebin-api/internal/auth"
 	"github.com/firelabsca/firebin-api/internal/config"
+	"github.com/firelabsca/firebin-api/internal/datasheets"
 	"github.com/firelabsca/firebin-api/internal/events"
 	"github.com/firelabsca/firebin-api/internal/jobs"
 	"github.com/firelabsca/firebin-api/internal/kicad/httplib"
@@ -44,6 +45,12 @@ type Handler struct {
 	Backup         *repository.BackupRepo
 	KicadLib       *repository.KicadLibraryRepo
 	Bus            *events.Broker
+
+	// Datasheets is the metadata; DatasheetFiles is the content-addressed store
+	// on disk under Cfg.AttachmentStoragePath. Split because the PDFs are too
+	// large to sit in Postgres without breaking the JSON backup path.
+	Datasheets     *repository.DatasheetRepo
+	DatasheetFiles *datasheets.Store
 
 	// The KiCad HTTP library: per-workstation credentials, the catalogue snapshot
 	// it is served from, and the handler set. The cache is exposed so main can
@@ -170,6 +177,8 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 		Backup:         repository.NewBackupRepo(pool),
 		KicadLib:       repository.NewKicadLibraryRepo(pool),
 		Bus:            events.NewBroker(),
+		Datasheets:     repository.NewDatasheetRepo(pool),
+		DatasheetFiles: datasheets.New(cfg.AttachmentStoragePath),
 		Enrichers:      enrichers,
 		EnricherBy:     enricherBy,
 		AI:             aiService,
@@ -203,6 +212,8 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 	deps := jobs.NewDeps(store, h.Bus)
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &bulkEnrichWorker{h: h, deps: deps})
+	river.AddWorker(workers, &datasheetMirrorWorker{h: h, deps: deps})
+	river.AddWorker(workers, &datasheetExtractWorker{h: h, deps: deps})
 	svc, err := jobs.New(pool, store, deps, workers)
 	if err != nil {
 		return nil, err

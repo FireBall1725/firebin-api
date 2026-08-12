@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/firelabsca/firebin-api/internal/db"
+	"github.com/firelabsca/firebin-api/internal/models"
 	"github.com/firelabsca/firebin-api/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -73,6 +74,10 @@ func TestListPartsScansEveryColumn(t *testing.T) {
 		t.Errorf("KicadFootprint = %v, want Resistor_SMD:R_0603_1608Metric", got.KicadFootprint)
 	}
 
+	if got.HasDatasheet {
+		t.Error("HasDatasheet = true for a part with no datasheet linked")
+	}
+
 	// Get uses a different scanner over the same column list; both have to stay
 	// in step, so check the column round-trips on that path too.
 	one, err := repo.Get(ctx, uuid.MustParse(partID))
@@ -81,5 +86,91 @@ func TestListPartsScansEveryColumn(t *testing.T) {
 	}
 	if one.KicadSymbol == nil || *one.KicadSymbol != "Device:R" {
 		t.Errorf("Get KicadSymbol = %v, want Device:R", one.KicadSymbol)
+	}
+}
+
+// TestListReportsLinkedDatasheet covers the has_datasheet flag on both list
+// paths.
+//
+// SearchParametric has its own inline scan, separate from List's, so the flag
+// can be right in one and wrong in the other. The palette reads List and the
+// parts page switches to SearchParametric the moment a package or value filter
+// is typed, which would make the PDF badge blink out of existence for no reason
+// the user could see.
+func TestListReportsLinkedDatasheet(t *testing.T) {
+	url := dbURL(t)
+	ctx := context.Background()
+
+	if err := db.Migrate(url); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	pool, err := pgxpool.New(ctx, url)
+	if err != nil {
+		t.Fatalf("pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	truncate := func() {
+		if _, err := pool.Exec(ctx, `TRUNCATE parts, datasheets CASCADE`); err != nil {
+			t.Fatalf("truncate: %v", err)
+		}
+	}
+	truncate()
+	t.Cleanup(truncate)
+
+	const withID = "cccccccc-0000-0000-0000-0000000000d1"
+	const withoutID = "cccccccc-0000-0000-0000-0000000000d2"
+	mustExec(t, pool, ctx,
+		`INSERT INTO parts (id, name, package) VALUES ($1, 'ESP32-C6-MINI-1', 'MINI-1'), ($2, 'CH340C', 'SOP-16')`,
+		withID, withoutID)
+
+	dsRepo := repository.NewDatasheetRepo(pool)
+	d, err := dsRepo.Create(ctx, repository.NewDatasheet{
+		SHA256:   "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		Filename: "esp32-c6_datasheet_en.pdf", SizeBytes: 4200000,
+	})
+	if err != nil {
+		t.Fatalf("Create datasheet: %v", err)
+	}
+	if err := dsRepo.LinkPart(ctx, d.ID, uuid.MustParse(withID), nil); err != nil {
+		t.Fatalf("LinkPart: %v", err)
+	}
+
+	repo := repository.NewPartRepo(pool)
+
+	byName := func(parts []models.Part) map[string]bool {
+		m := map[string]bool{}
+		for _, p := range parts {
+			m[p.Name] = p.HasDatasheet
+		}
+		return m
+	}
+
+	list, err := repo.List(ctx, repository.ListOptions{TopLevel: true})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	got := byName(list)
+	if !got["ESP32-C6-MINI-1"] {
+		t.Error("List: linked part reported HasDatasheet = false")
+	}
+	if got["CH340C"] {
+		t.Error("List: unlinked part reported HasDatasheet = true")
+	}
+
+	matches, err := repo.SearchParametric(ctx, repository.ParametricOptions{})
+	if err != nil {
+		t.Fatalf("SearchParametric: %v", err)
+	}
+	parts := make([]models.Part, 0, len(matches))
+	for _, m := range matches {
+		parts = append(parts, m.Part)
+	}
+	got = byName(parts)
+	if !got["ESP32-C6-MINI-1"] {
+		t.Error("SearchParametric: linked part reported HasDatasheet = false")
+	}
+	if got["CH340C"] {
+		t.Error("SearchParametric: unlinked part reported HasDatasheet = true")
 	}
 }

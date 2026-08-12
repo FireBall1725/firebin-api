@@ -26,7 +26,12 @@ func NewBackupRepo(pool *pgxpool.Pool) *BackupRepo { return &BackupRepo{pool: po
 var backupTables = []string{
 	"categories", "parameter_templates", "manufacturers", "suppliers", "storage_locations",
 	"users", "parts", "part_parameters", "manufacturer_parts", "supplier_parts",
-	"supplier_part_pricing", "stock_items", "stock_transactions", "part_images", "attachments",
+	"supplier_part_pricing", "stock_items", "stock_transactions", "part_images",
+	// Datasheet METADATA only. The PDFs live on the filesystem under
+	// ATTACHMENT_STORAGE_PATH and deliberately do not travel in the JSON export:
+	// base64'd multi-megabyte blobs would push a backup past the 256 MiB import
+	// cap and make it unrestorable. That volume needs its own backup.
+	"datasheets", "datasheet_parts",
 	"label_media", "label_templates", "projects", "project_boards", "board_bom_lines",
 	"project_matches", "project_assets", "api_tokens", "instance_settings",
 }

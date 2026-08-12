@@ -477,6 +477,7 @@ func (h *Handler) applyEnrichment(ctx context.Context, part *models.Part, primar
 			mfg = strings.TrimSpace(en.Manufacturer)
 		}
 		_ = h.Catalog.UpdateManufacturerPart(ctx, primary.ID, mfg, primary.MPN, &en.DatasheetURL)
+		h.autoMirrorDatasheet(ctx, part.ID, primary.ID, primary.MPN, en.DatasheetURL)
 	}
 	for _, s := range en.Suppliers {
 		if !isMajorDistributor(s.Name) {

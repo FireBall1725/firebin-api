@@ -51,6 +51,13 @@ type Toolbox struct {
 	Catalog    *repository.CatalogRepo
 	Projects   *repository.ProjectRepo
 
+	// Datasheets and DatasheetText are a pair: metadata from Postgres, extracted
+	// page text from the sidecar on disk. Both optional, and the datasheet tools
+	// are only offered when both are present, so an instance without attachment
+	// storage does not advertise a capability it cannot deliver.
+	Datasheets    *repository.DatasheetRepo
+	DatasheetText datasheetSource
+
 	// Enrich looks up an MPN with the distributor providers. Optional: when nil
 	// the lookup tool is not offered at all, rather than offered and failing.
 	Enrich func(ctx context.Context, mpn string) (*models.EnrichedPart, error)
@@ -84,6 +91,9 @@ func (t *Toolbox) Tools() []Tool {
 		t.getProject(),
 		t.getBoard(),
 		t.boardPickList(),
+	}
+	if t.Datasheets != nil && t.DatasheetText != nil {
+		tools = append(tools, t.findDatasheet(), t.searchDatasheet(), t.readDatasheetPage())
 	}
 	if t.Enrich != nil {
 		tools = append(tools, t.lookupMPN())
