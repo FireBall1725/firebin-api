@@ -1266,6 +1266,509 @@ const docTemplate = `{
                 }
             }
         },
+        "/datasheets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List stored datasheets, optionally filtered by search text, category, part, or unlinked state.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "List datasheets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search title, filename, part name, or MPN",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Category id filter (matches via linked parts)",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only datasheets linked to this part",
+                        "name": "part",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Set to true for datasheets with no linked part",
+                        "name": "unlinked",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Store a PDF in the library. Optionally link it to a part on creation; an unlinked upload is allowed.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Upload datasheet",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "PDF file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Part to link on creation",
+                        "name": "part_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "MPN the datasheet belongs to",
+                        "name": "manufacturer_part_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Display title",
+                        "name": "title",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/datasheets/bulk/mirror": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Download a local copy for every part that has a datasheet URL and no stored file.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Mirror missing datasheets",
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/datasheets/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Totals for the datasheet library: count, bytes on disk, unlinked, and how many parts have a datasheet URL with no local copy.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Datasheet stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_repository.DatasheetStats"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/datasheets/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Metadata for one datasheet, including every part it is linked to.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Get datasheet",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Datasheet id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Remove a datasheet, its part links, its stored PDF, and its extracted text.",
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Delete datasheet",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Datasheet id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Change a datasheet's display title.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Update datasheet",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Datasheet id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to change",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.datasheetPatchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/datasheets/{id}/content": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Stream the stored PDF. Supports range requests.",
+                "produces": [
+                    "application/pdf"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Get datasheet content",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Datasheet id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/datasheets/{id}/parts": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Attach a datasheet to a part. A datasheet may cover many parts.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Link datasheet to part",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Datasheet id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Part to link",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api_handlers.datasheetLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/datasheets/{id}/parts/{partID}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Detach a datasheet from a part. The datasheet itself is kept and becomes unlinked if it has no other parts.",
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Unlink datasheet from part",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Datasheet id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Part id",
+                        "name": "partID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/enrich": {
             "get": {
                 "security": [
@@ -3198,6 +3701,62 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/manufacturer-parts/{id}/datasheet/mirror": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Download the datasheet at this manufacturer part's URL and store it locally.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Mirror an MPN's datasheet",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Manufacturer part id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
@@ -5336,6 +5895,92 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/datasheets": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Return the auto-mirror and text-extraction toggles, the upload size cap, and library totals.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get datasheet settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Store the auto-mirror and text-extraction toggles and the upload size cap.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Update datasheet settings",
+                "parameters": [
+                    {
+                        "description": "request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -7668,6 +8313,82 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_firelabsca_firebin-api_internal_models.Datasheet": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "extracted_at": {
+                    "type": "string"
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "mime": {
+                    "type": "string"
+                },
+                "origin": {
+                    "type": "string"
+                },
+                "page_count": {
+                    "type": "integer"
+                },
+                "parts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.DatasheetPartLink"
+                    }
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "source_url": {
+                    "type": "string"
+                },
+                "text_status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_models.DatasheetPartLink": {
+            "type": "object",
+            "properties": {
+                "category_id": {
+                    "type": "string"
+                },
+                "category_name": {
+                    "type": "string"
+                },
+                "manufacturer_part_id": {
+                    "type": "string"
+                },
+                "mpn": {
+                    "type": "string"
+                },
+                "part_id": {
+                    "type": "string"
+                },
+                "part_name": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_firelabsca_firebin-api_internal_models.DayCount": {
             "type": "object",
             "properties": {
@@ -8784,6 +9505,42 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_firelabsca_firebin-api_internal_repository.DatasheetStats": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "mirror_candidates": {
+                    "type": "integer"
+                },
+                "total_bytes": {
+                    "type": "integer"
+                },
+                "unlinked": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_api_handlers.datasheetLinkRequest": {
+            "type": "object",
+            "properties": {
+                "manufacturer_part_id": {
+                    "type": "string"
+                },
+                "part_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api_handlers.datasheetPatchRequest": {
+            "type": "object",
+            "properties": {
+                "title": {
                     "type": "string"
                 }
             }

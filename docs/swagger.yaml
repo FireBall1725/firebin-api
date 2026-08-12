@@ -266,6 +266,56 @@ definitions:
           type: integer
         type: array
     type: object
+  github_com_firelabsca_firebin-api_internal_models.Datasheet:
+    properties:
+      created_at:
+        type: string
+      extracted_at:
+        type: string
+      filename:
+        type: string
+      id:
+        type: string
+      language:
+        type: string
+      mime:
+        type: string
+      origin:
+        type: string
+      page_count:
+        type: integer
+      parts:
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.DatasheetPartLink'
+        type: array
+      sha256:
+        type: string
+      size_bytes:
+        type: integer
+      source_url:
+        type: string
+      text_status:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_models.DatasheetPartLink:
+    properties:
+      category_id:
+        type: string
+      category_name:
+        type: string
+      manufacturer_part_id:
+        type: string
+      mpn:
+        type: string
+      part_id:
+        type: string
+      part_name:
+        type: string
+    type: object
   github_com_firelabsca_firebin-api_internal_models.DayCount:
     properties:
       count:
@@ -1046,6 +1096,29 @@ definitions:
       updated_at:
         type: string
       username:
+        type: string
+    type: object
+  github_com_firelabsca_firebin-api_internal_repository.DatasheetStats:
+    properties:
+      count:
+        type: integer
+      mirror_candidates:
+        type: integer
+      total_bytes:
+        type: integer
+      unlinked:
+        type: integer
+    type: object
+  internal_api_handlers.datasheetLinkRequest:
+    properties:
+      manufacturer_part_id:
+        type: string
+      part_id:
+        type: string
+    type: object
+  internal_api_handlers.datasheetPatchRequest:
+    properties:
+      title:
         type: string
     type: object
 host: localhost:8080
@@ -1892,6 +1965,338 @@ paths:
       summary: Update category
       tags:
       - categories
+  /datasheets:
+    get:
+      description: List stored datasheets, optionally filtered by search text, category,
+        part, or unlinked state.
+      parameters:
+      - description: Search title, filename, part name, or MPN
+        in: query
+        name: search
+        type: string
+      - description: Category id filter (matches via linked parts)
+        in: query
+        name: category
+        type: string
+      - description: Only datasheets linked to this part
+        in: query
+        name: part
+        type: string
+      - description: Set to true for datasheets with no linked part
+        in: query
+        name: unlinked
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List datasheets
+      tags:
+      - datasheets
+    post:
+      consumes:
+      - multipart/form-data
+      description: Store a PDF in the library. Optionally link it to a part on creation;
+        an unlinked upload is allowed.
+      parameters:
+      - description: PDF file
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Part to link on creation
+        in: formData
+        name: part_id
+        type: string
+      - description: MPN the datasheet belongs to
+        in: formData
+        name: manufacturer_part_id
+        type: string
+      - description: Display title
+        in: formData
+        name: title
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "413":
+          description: Request Entity Too Large
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upload datasheet
+      tags:
+      - datasheets
+  /datasheets/{id}:
+    delete:
+      description: Remove a datasheet, its part links, its stored PDF, and its extracted
+        text.
+      parameters:
+      - description: Datasheet id
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete datasheet
+      tags:
+      - datasheets
+    get:
+      description: Metadata for one datasheet, including every part it is linked to.
+      parameters:
+      - description: Datasheet id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get datasheet
+      tags:
+      - datasheets
+    patch:
+      consumes:
+      - application/json
+      description: Change a datasheet's display title.
+      parameters:
+      - description: Datasheet id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to change
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.datasheetPatchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update datasheet
+      tags:
+      - datasheets
+  /datasheets/{id}/content:
+    get:
+      description: Stream the stored PDF. Supports range requests.
+      parameters:
+      - description: Datasheet id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get datasheet content
+      tags:
+      - datasheets
+  /datasheets/{id}/parts:
+    post:
+      consumes:
+      - application/json
+      description: Attach a datasheet to a part. A datasheet may cover many parts.
+      parameters:
+      - description: Datasheet id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Part to link
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.datasheetLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Datasheet'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Link datasheet to part
+      tags:
+      - datasheets
+  /datasheets/{id}/parts/{partID}:
+    delete:
+      description: Detach a datasheet from a part. The datasheet itself is kept and
+        becomes unlinked if it has no other parts.
+      parameters:
+      - description: Datasheet id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Part id
+        in: path
+        name: partID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Unlink datasheet from part
+      tags:
+      - datasheets
+  /datasheets/bulk/mirror:
+    post:
+      description: Download a local copy for every part that has a datasheet URL and
+        no stored file.
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Mirror missing datasheets
+      tags:
+      - datasheets
+  /datasheets/stats:
+    get:
+      description: 'Totals for the datasheet library: count, bytes on disk, unlinked,
+        and how many parts have a datasheet URL with no local copy.'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_repository.DatasheetStats'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Datasheet stats
+      tags:
+      - datasheets
   /enrich:
     get:
       description: Look up an MPN across the enrichment providers and return normalized
@@ -3176,6 +3581,44 @@ paths:
       summary: Update manufacturer part
       tags:
       - catalog
+  /manufacturer-parts/{id}/datasheet/mirror:
+    post:
+      description: Download the datasheet at this manufacturer part's URL and store
+        it locally.
+      parameters:
+      - description: Manufacturer part id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Mirror an MPN's datasheet
+      tags:
+      - datasheets
   /manufacturer-parts/{id}/supplier-parts:
     post:
       consumes:
@@ -4574,6 +5017,64 @@ paths:
       security:
       - BearerAuth: []
       summary: Test an AI provider
+      tags:
+      - settings
+  /settings/datasheets:
+    get:
+      description: Return the auto-mirror and text-extraction toggles, the upload
+        size cap, and library totals.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get datasheet settings
+      tags:
+      - settings
+    put:
+      consumes:
+      - application/json
+      description: Store the auto-mirror and text-extraction toggles and the upload
+        size cap.
+      parameters:
+      - description: request body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update datasheet settings
       tags:
       - settings
   /settings/enrichment:

@@ -91,7 +91,8 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 			WHERE s.part_id = parts.id
 			   OR s.part_id IN (SELECT id FROM parts v WHERE v.variant_of = parts.id)), 0)::float8 AS total_stock,
 		(SELECT COUNT(*) FROM parts v WHERE v.variant_of = parts.id)::int AS variant_count,
-		mpj.mpn, mpj.mfr, locj.name, locj.id
+		mpj.mpn, mpj.mfr, locj.name, locj.id,
+		EXISTS (SELECT 1 FROM datasheet_parts dp WHERE dp.part_id = parts.id) AS has_datasheet
 		FROM parts
 		LEFT JOIN LATERAL (
 			-- LEFT, not inner: manufacturer_id is nullable, and an MPN recorded
@@ -142,6 +143,7 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 			&p.Barcode, &p.ImagePath, &p.IsTemplate, &p.IsComponent, &p.IsAssembly, &p.IsPurchaseable,
 			&p.IsTrackable, &p.ReferenceOnly, &p.MinimumStock, &p.DefaultLocationID, &p.CreatedAt, &p.UpdatedAt,
 			&p.TotalStock, &p.VariantCount, &mpn, &mfr, &locName, &p.PrimaryLocationID,
+			&p.HasDatasheet,
 		); err != nil {
 			return nil, err
 		}

@@ -189,6 +189,23 @@ func (h *Handler) RetryTask(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		respond.JSON(w, http.StatusAccepted, map[string]any{"task_id": newID})
+	case "datasheet_mirror":
+		var a DatasheetMirrorArgs
+		if err := json.Unmarshal(t.ArgsSummary, &a); err != nil || len(a.Targets) == 0 {
+			respond.Error(w, http.StatusBadRequest, "cannot retry: missing arguments")
+			return
+		}
+		newID := uuid.New()
+		a.TaskID = newID
+		summary, _ := json.Marshal(a)
+		if err := h.Jobs.Enqueue(r.Context(), newID, a, jobs.EnqueueMeta{
+			Type: "datasheet_mirror", Queue: jobs.QueueIngest, MaxAttempts: 3,
+			CreatedBy: &uid, ArgsSummary: summary, ProgressTotal: len(a.Targets),
+		}); err != nil {
+			respond.Error(w, http.StatusInternalServerError, "could not re-enqueue")
+			return
+		}
+		respond.JSON(w, http.StatusAccepted, map[string]any{"task_id": newID})
 	default:
 		respond.Error(w, http.StatusBadRequest, "retry not supported for this task type")
 	}

@@ -54,7 +54,8 @@ func (r *PartRepo) SearchParametric(ctx context.Context, opts ParametricOptions)
 			FROM part_parameters pp
 			JOIN parameter_templates pt ON pt.id = pp.template_id
 			WHERE pp.part_id = parts.id
-		), '[]')::text AS params
+		), '[]')::text AS params,
+		EXISTS (SELECT 1 FROM datasheet_parts dp WHERE dp.part_id = parts.id) AS has_datasheet
 		FROM parts
 		WHERE 1=1`)
 
@@ -106,7 +107,7 @@ func (r *PartRepo) SearchParametric(ctx context.Context, opts ParametricOptions)
 			&m.KicadSymbol, &m.KicadFootprint, &m.Keywords,
 			&m.Barcode, &m.ImagePath, &m.IsTemplate, &m.IsComponent, &m.IsAssembly, &m.IsPurchaseable,
 			&m.IsTrackable, &m.ReferenceOnly, &m.MinimumStock, &m.DefaultLocationID, &m.CreatedAt, &m.UpdatedAt,
-			&m.TotalStock, &m.VariantCount, &params,
+			&m.TotalStock, &m.VariantCount, &params, &m.HasDatasheet,
 		); err != nil {
 			return nil, err
 		}
