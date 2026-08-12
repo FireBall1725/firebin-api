@@ -356,15 +356,15 @@ func (h *Handler) fetchDatasheetOnce(ctx context.Context, url string, maxBytes i
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	switch {
-	case resp.StatusCode == http.StatusOK:
+	switch resp.StatusCode {
+	case http.StatusOK:
 		// fall through
-	case resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized:
+	case http.StatusForbidden, http.StatusUnauthorized:
 		// Worth its own message: nothing is broken and retrying will not help.
 		// The vendor is refusing automated downloads, and the datasheet link on
 		// the part still opens fine in a browser.
 		return nil, fmt.Errorf("the vendor refused an automated download (%d); the datasheet link still works in a browser, so open it and upload the PDF if you want a copy", resp.StatusCode)
-	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
+	case http.StatusNotFound, http.StatusGone:
 		return nil, fmt.Errorf("the datasheet URL is dead (%d)", resp.StatusCode)
 	default:
 		return nil, fmt.Errorf("datasheet URL returned %d", resp.StatusCode)
