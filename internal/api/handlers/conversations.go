@@ -283,6 +283,19 @@ func (h *Handler) whyNoProvider() string {
 	return p.Info().DisplayName + " is selected but not configured; fill in its settings under Assistant, or pick another"
 }
 
+// knownSubjectKinds is what a conversation is allowed to be about.
+//
+// It has to match the CHECK constraint on assistant_conversations.subject_kind
+// exactly. Both exist: the constraint is the guarantee, and this is what stops a
+// violation of it reaching Postgres and turning a question into a 500. Adding a
+// kind means editing this AND writing a migration; see 000034 for why.
+var knownSubjectKinds = map[string]bool{
+	"part":      true,
+	"project":   true,
+	"board":     true,
+	"datasheet": true,
+}
+
 // resolveConversation loads the thread being continued, or opens a new one.
 func (h *Handler) resolveConversation(w http.ResponseWriter, ctx context.Context, userID uuid.UUID, req sendMessageRequest) (*models.Conversation, []ai.Message, bool) {
 	if id := strings.TrimSpace(req.ConversationID); id != "" {
@@ -311,14 +324,26 @@ func (h *Handler) resolveConversation(w http.ResponseWriter, ctx context.Context
 	var kind *string
 	var subject *uuid.UUID
 	if k := strings.TrimSpace(req.SubjectKind); k != "" {
-		kind = &k
-		if s := strings.TrimSpace(req.SubjectID); s != "" {
-			id, err := uuid.Parse(s)
-			if err != nil {
-				respond.Error(w, http.StatusBadRequest, "invalid subject id")
-				return nil, nil, false
+		// Checked here, not just by the database. subject_kind is a free string
+		// all the way from the browser, and the column has a CHECK constraint, so
+		// a kind the schema does not know turns an INSERT into an error and the
+		// whole question into a 500 — which is exactly what adding the datasheet
+		// page did. Dropping an unknown kind costs the conversation its subject
+		// and nothing else, where the alternative costs the user their answer.
+		if knownSubjectKinds[k] {
+			kind = &k
+			if s := strings.TrimSpace(req.SubjectID); s != "" {
+				id, err := uuid.Parse(s)
+				if err != nil {
+					respond.Error(w, http.StatusBadRequest, "invalid subject id")
+					return nil, nil, false
+				}
+				subject = &id
 			}
-			subject = &id
+		} else {
+			// Logged rather than silent: this only happens when a client knows
+			// about a subject the schema does not, which is a missing migration.
+			slog.Warn("ignoring an unknown assistant subject kind", "kind", k)
 		}
 	}
 	conv, err := h.Assistant.CreateConversation(ctx, userID, req.Question, kind, subject)
