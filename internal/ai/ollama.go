@@ -8,12 +8,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
 const (
 	ollamaDefaultBaseURL = "http://127.0.0.1:11434"
 	ollamaDefaultModel   = "qwen3:8b"
+	// ollamaDefaultNumCtx is the context window requested when none is set.
+	//
+	// Deliberately larger than Ollama's own default, which is small enough that a
+	// tool-calling turn is truncated in silence and the model answers nothing.
+	// An assistant that does not work unless you first find an undocumented
+	// setting is worse than one that asks for more memory, and the field below
+	// exists for anyone who needs it smaller.
+	ollamaDefaultNumCtx = 16384
 )
 
 // OllamaProvider talks to Ollama's native /api/chat.
@@ -28,6 +37,15 @@ type OllamaProvider struct {
 	// Empty when talking to Ollama directly, which does not authenticate. Set
 	// when pointed at a gateway that fronts it; see the api_key field below.
 	apiKey string
+	// numCtx is the context window to ask Ollama for, in tokens.
+	//
+	// Ollama does NOT use the model's own context length. It allocates its own
+	// default, which is small, and silently truncates anything longer — no error,
+	// no warning, just a model that answers from a prompt with the middle cut
+	// out. A tool-calling turn blows past that easily: one real question here
+	// reached 10,724 input tokens over four rounds against a model advertising
+	// 131,072, and came back with nothing at all.
+	numCtx int
 }
 
 func NewOllamaProvider() *OllamaProvider {
@@ -57,6 +75,15 @@ func (p *OllamaProvider) Info() ProviderInfo {
 					"Fill this in when the base URL points at a gateway that fronts Ollama, such as " +
 					"Ollama Admin, whose path-preserving proxy takes a Bearer key and rejects requests without one.",
 			},
+			{
+				Key: "num_ctx", Label: "Context window", Type: "text", Required: false,
+				Placeholder: strconv.Itoa(ollamaDefaultNumCtx),
+				HelpText: "Tokens of context to ask Ollama for. Ollama ignores the model's own " +
+					"context length and applies a much smaller default, then truncates a longer " +
+					"prompt without saying so — which shows up as the assistant running its tools " +
+					"and then answering nothing. Raise this if that happens; lower it if the host " +
+					"runs short of memory. It cannot exceed what the model supports.",
+			},
 		},
 	}
 }
@@ -65,6 +92,10 @@ func (p *OllamaProvider) Configure(cfg map[string]string) {
 	p.baseURL = firstNonEmpty(cfg["base_url"], ollamaDefaultBaseURL)
 	p.model = firstNonEmpty(cfg["model"], ollamaDefaultModel)
 	p.apiKey = cfg["api_key"]
+	p.numCtx = ollamaDefaultNumCtx
+	if n, err := strconv.Atoi(strings.TrimSpace(cfg["num_ctx"])); err == nil && n > 0 {
+		p.numCtx = n
+	}
 	// Still keyed on the base URL alone: an unauthenticated Ollama is the normal
 	// case, so an empty key must not disable the provider.
 	p.enabled = p.baseURL != ""
@@ -118,8 +149,15 @@ type ollamaResponse struct {
 // streamed turn and an unstreamed one cannot drift apart.
 func (p *OllamaProvider) buildRequest(req ChatRequest) ollamaRequest {
 	body := ollamaRequest{Model: p.model}
+	body.Options = map[string]any{}
 	if n := maxTokensOr(req.MaxTokens, 4096); n > 0 {
-		body.Options = map[string]any{"num_predict": n}
+		body.Options["num_predict"] = n
+	}
+	// Sent on every request, not only when the user set it. Leaving it out is
+	// what makes Ollama fall back to its own small default and quietly truncate
+	// a tool-calling turn.
+	if p.numCtx > 0 {
+		body.Options["num_ctx"] = p.numCtx
 	}
 	if req.System != "" {
 		body.Messages = append(body.Messages, ollamaMessage{Role: "system", Content: req.System})
