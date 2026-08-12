@@ -358,7 +358,8 @@ func (h *Handler) fetchDatasheetOnce(ctx context.Context, url string, maxBytes i
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		// fall through
+		// Nothing to do; carry on to reading the body below. (Not Go's
+		// `fallthrough`, which would run the 403 case next.)
 	case http.StatusForbidden, http.StatusUnauthorized:
 		// Worth its own message: nothing is broken and retrying will not help.
 		// The vendor is refusing automated downloads, and the datasheet link on
