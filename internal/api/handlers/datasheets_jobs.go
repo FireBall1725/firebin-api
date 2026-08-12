@@ -65,6 +65,7 @@ func (w *datasheetMirrorWorker) Work(ctx context.Context, job *river.Job[Datashe
 	return w.deps.Run(ctx, a.TaskID, job.Attempt, job.MaxAttempts, func(r *jobs.Run) error {
 		rctx := r.Context()
 		stored, skipped := 0, 0
+		extract := []uuid.UUID{}
 
 		err := jobs.ForEach(r, a.Targets, func(_ int, t MirrorTarget) {
 			content, err := w.h.fetchDatasheet(rctx, t.URL)
@@ -101,8 +102,13 @@ func (w *datasheetMirrorWorker) Work(ctx context.Context, job *river.Job[Datashe
 				return
 			}
 			r.Log("info", "%s: %s (%d KB)", t.MPN, name, len(content)/1024)
+			extract = append(extract, d.ID)
 			stored++
 		})
+
+		// One extraction job for the whole batch rather than one per file: a
+		// backfill of hundreds would otherwise flood the queue with tiny jobs.
+		w.h.enqueueExtraction(rctx, extract...)
 
 		r.SetResult(map[string]int{"stored": stored, "skipped": skipped})
 		w.h.Bus.Publish("datasheets")
@@ -113,6 +119,181 @@ func (w *datasheetMirrorWorker) Work(ctx context.Context, job *river.Job[Datashe
 		r.Log("info", "done: %d stored, %d skipped", stored, skipped)
 		return nil
 	})
+}
+
+// DatasheetExtractArgs is the payload for a text-extraction run. ArgsVersion
+// lets the shape evolve without breaking jobs already queued.
+type DatasheetExtractArgs struct {
+	TaskID       uuid.UUID   `json:"task_id"`
+	ArgsVersion  int         `json:"args_version"`
+	DatasheetIDs []uuid.UUID `json:"datasheet_ids"`
+}
+
+func (DatasheetExtractArgs) Kind() string { return "datasheet_extract" }
+
+// datasheetExtractWorker pulls the text layer out of stored PDFs and writes the
+// per-page sidecar the assistant reads.
+//
+// On the default queue rather than ingest: extraction is CPU work on a local
+// file with no network involved, so it should not sit behind a queue sized for
+// slow vendor downloads.
+type datasheetExtractWorker struct {
+	river.WorkerDefaults[DatasheetExtractArgs]
+	h    *Handler
+	deps *jobs.Deps
+}
+
+// Timeout is generous because a thousand-page reference manual takes real time
+// to parse, but finite so a pathological file cannot wedge the queue.
+func (w *datasheetExtractWorker) Timeout(*river.Job[DatasheetExtractArgs]) time.Duration {
+	return 30 * time.Minute
+}
+
+func (w *datasheetExtractWorker) Work(ctx context.Context, job *river.Job[DatasheetExtractArgs]) error {
+	a := job.Args
+	return w.deps.Run(ctx, a.TaskID, job.Attempt, job.MaxAttempts, func(r *jobs.Run) error {
+		rctx := r.Context()
+		read, scans, failed := 0, 0, 0
+
+		err := jobs.ForEach(r, a.DatasheetIDs, func(_ int, id uuid.UUID) {
+			d, err := w.h.Datasheets.Get(rctx, id)
+			if err != nil || d == nil {
+				r.Log("warn", "datasheet %s not found, skipped", id)
+				failed++
+				return
+			}
+			content, err := w.h.DatasheetFiles.Read(d.SHA256)
+			if err != nil {
+				r.Log("warn", "%s: file missing from storage", d.Filename)
+				_ = w.h.Datasheets.SetExtraction(rctx, id, nil, nil, models.TextFailed)
+				failed++
+				return
+			}
+
+			res, err := datasheets.ExtractPages(content)
+			// A parse error still leaves whatever pages were read, and the sidecar
+			// is written either way so a partial document is still searchable.
+			if werr := w.h.DatasheetFiles.WriteSidecar(d.SHA256, res.Pages); werr != nil {
+				r.Log("warn", "%s: could not write extracted text: %v", d.Filename, werr)
+			}
+
+			pages := res.PageCount
+			var pagesPtr *int
+			if pages > 0 {
+				pagesPtr = &pages
+			}
+			var lang *string
+			if res.Language != "" {
+				l := res.Language
+				lang = &l
+			}
+
+			switch {
+			case err != nil && !res.HasText:
+				_ = w.h.Datasheets.SetExtraction(rctx, id, pagesPtr, lang, models.TextFailed)
+				r.Log("warn", "%s: %v", d.Filename, err)
+				failed++
+			case !res.HasText:
+				// A scan. Normal for a mechanical drawing, and not a failure: it
+				// says plainly that the assistant cannot read this one.
+				_ = w.h.Datasheets.SetExtraction(rctx, id, pagesPtr, lang, models.TextNoTextLayer)
+				r.Log("info", "%s: %d pages, no text layer (a scan)", d.Filename, pages)
+				scans++
+			default:
+				_ = w.h.Datasheets.SetExtraction(rctx, id, pagesPtr, lang, models.TextOK)
+				r.Log("info", "%s: %d pages read%s", d.Filename, pages, langNote(res.Language))
+				read++
+			}
+		})
+
+		r.SetResult(map[string]int{"read": read, "scans": scans, "failed": failed})
+		w.h.Bus.Publish("datasheets")
+		if err != nil {
+			return err // cancelled part-way
+		}
+		r.Log("info", "done: %d read, %d scans, %d failed", read, scans, failed)
+		return nil
+	})
+}
+
+func langNote(lang string) string {
+	if lang == "" || lang == "en" {
+		return ""
+	}
+	return " (" + lang + ")"
+}
+
+// enqueueExtraction queues text extraction for freshly stored datasheets, when
+// the instance has not turned it off.
+//
+// Errors are swallowed: the file is stored and linked, which is the part the
+// user asked for. Extraction is a cache that can always be rebuilt later.
+func (h *Handler) enqueueExtraction(ctx context.Context, ids ...uuid.UUID) {
+	if len(ids) == 0 {
+		return
+	}
+	if v, _ := h.Settings.Get(ctx, "datasheets.extract_text"); v == "false" {
+		return
+	}
+	taskID := uuid.New()
+	args := DatasheetExtractArgs{TaskID: taskID, DatasheetIDs: ids}
+	summary, _ := json.Marshal(args)
+	_ = h.Jobs.Enqueue(ctx, taskID, args, jobs.EnqueueMeta{
+		Type: "datasheet_extract", Queue: jobs.QueueDefault, MaxAttempts: 2,
+		ArgsSummary: summary, ProgressTotal: len(ids),
+	})
+}
+
+// ExtractDatasheetText re-runs text extraction.
+//
+// Exists because the sidecar is a rebuildable cache: deleting it to reclaim disk,
+// or upgrading the parser, both need a way to ask for the text again. With no id
+// it sweeps everything still pending.
+// @Summary     Extract datasheet text
+// @Description Re-read the text layer of one datasheet, or of every datasheet still pending.
+// @Tags        datasheets
+// @Security    BearerAuth
+// @Produce     json
+// @Param       id   path      string  false  "Datasheet id; omit to sweep everything pending"
+// @Success     202  {object}  map[string]interface{}
+// @Failure     401  {object}  map[string]interface{}
+// @Router      /datasheets/{id}/extract  [post]
+func (h *Handler) ExtractDatasheetText(w http.ResponseWriter, r *http.Request) {
+	var ids []uuid.UUID
+	if raw := r.PathValue("id"); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			respond.Error(w, http.StatusBadRequest, "invalid id")
+			return
+		}
+		ids = []uuid.UUID{id}
+	} else {
+		pending, err := h.Datasheets.PendingExtraction(r.Context(), 500)
+		if err != nil {
+			respond.Error(w, http.StatusInternalServerError, "could not list pending datasheets")
+			return
+		}
+		for _, d := range pending {
+			ids = append(ids, d.ID)
+		}
+	}
+	if len(ids) == 0 {
+		respond.JSON(w, http.StatusOK, map[string]any{"task_id": nil, "datasheets": 0})
+		return
+	}
+
+	uid := middleware.UserID(r.Context())
+	taskID := uuid.New()
+	args := DatasheetExtractArgs{TaskID: taskID, DatasheetIDs: ids}
+	summary, _ := json.Marshal(args)
+	if err := h.Jobs.Enqueue(r.Context(), taskID, args, jobs.EnqueueMeta{
+		Type: "datasheet_extract", Queue: jobs.QueueDefault, MaxAttempts: 2,
+		CreatedBy: &uid, ArgsSummary: summary, ProgressTotal: len(ids),
+	}); err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not start extraction")
+		return
+	}
+	respond.JSON(w, http.StatusAccepted, map[string]any{"task_id": taskID, "datasheets": len(ids)})
 }
 
 // fetchDatasheet downloads a URL and verifies it is really a PDF.

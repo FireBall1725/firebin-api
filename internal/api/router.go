@@ -126,6 +126,8 @@ func NewRouter(h *handlers.Handler) http.Handler {
 	protected("POST /api/v1/datasheets", h.UploadDatasheet)
 	protected("GET /api/v1/datasheets/stats", h.DatasheetStats)
 	protected("POST /api/v1/datasheets/bulk/mirror", h.BulkMirrorDatasheets)
+	protected("POST /api/v1/datasheets/bulk/extract", h.ExtractDatasheetText)
+	protected("POST /api/v1/datasheets/{id}/extract", h.ExtractDatasheetText)
 	protected("GET /api/v1/datasheets/{id}", h.GetDatasheet)
 	protected("PATCH /api/v1/datasheets/{id}", h.UpdateDatasheet)
 	protected("DELETE /api/v1/datasheets/{id}", h.DeleteDatasheet)

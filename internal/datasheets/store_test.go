@@ -13,16 +13,16 @@ import (
 
 // pdf builds a minimal byte slice that passes the magic-byte check, with a
 // distinguishing tail so two calls produce different hashes.
-func pdf(tail string) []byte { return []byte("%PDF-1.7\n" + tail) }
+func fakePDF(tail string) []byte { return []byte("%PDF-1.7\n" + tail) }
 
 func TestPutIsContentAddressedAndDeduplicates(t *testing.T) {
 	s := New(t.TempDir())
 
-	a, err := s.Put(pdf("esp32-c6"))
+	a, err := s.Put(fakePDF("esp32-c6"))
 	if err != nil {
 		t.Fatalf("first Put: %v", err)
 	}
-	b, err := s.Put(pdf("esp32-c6"))
+	b, err := s.Put(fakePDF("esp32-c6"))
 	if err != nil {
 		t.Fatalf("second Put: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestPutIsContentAddressedAndDeduplicates(t *testing.T) {
 		t.Fatalf("want 1 file on disk after storing the same PDF twice, got %d", files)
 	}
 
-	c, err := s.Put(pdf("xvf3800"))
+	c, err := s.Put(fakePDF("xvf3800"))
 	if err != nil {
 		t.Fatalf("third Put: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestPathForRejectsAnythingButHex(t *testing.T) {
 
 func TestOpenAndReadRoundTrip(t *testing.T) {
 	s := New(t.TempDir())
-	want := pdf("round trip")
+	want := fakePDF("round trip")
 	sha, err := s.Put(want)
 	if err != nil {
 		t.Fatalf("Put: %v", err)
@@ -124,7 +124,7 @@ func TestOpenAndReadRoundTrip(t *testing.T) {
 
 func TestSidecarRoundTripAndAbsence(t *testing.T) {
 	s := New(t.TempDir())
-	sha, err := s.Put(pdf("with text"))
+	sha, err := s.Put(fakePDF("with text"))
 	if err != nil {
 		t.Fatalf("Put: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestSidecarRoundTripAndAbsence(t *testing.T) {
 
 func TestDeleteRemovesBothFiles(t *testing.T) {
 	s := New(t.TempDir())
-	sha, err := s.Put(pdf("delete me"))
+	sha, err := s.Put(fakePDF("delete me"))
 	if err != nil {
 		t.Fatalf("Put: %v", err)
 	}

@@ -281,6 +281,7 @@ func (h *Handler) UploadDatasheet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.enqueueExtraction(r.Context(), d.ID)
 	h.Bus.Publish("datasheets")
 	h.Bus.Publish("parts")
 	full, _ := h.Datasheets.Get(r.Context(), d.ID)

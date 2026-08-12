@@ -542,6 +542,14 @@ definitions:
         type: string
       description:
         type: string
+      has_datasheet:
+        description: |-
+          HasDatasheet reports whether a stored PDF is linked to this part, so the
+          parts list and the command palette can offer to open it without a
+          per-row fetch. Populated by the list queries only; false elsewhere.
+          Not omitempty: the client distinguishes "no datasheet" from "not asked",
+          and omitempty would erase the false.
+        type: boolean
       id:
         type: string
       image_path:
@@ -643,6 +651,14 @@ definitions:
         type: string
       description:
         type: string
+      has_datasheet:
+        description: |-
+          HasDatasheet reports whether a stored PDF is linked to this part, so the
+          parts list and the command palette can offer to open it without a
+          per-row fetch. Populated by the list queries only; false elsewhere.
+          Not omitempty: the client distinguishes "no datasheet" from "not asked",
+          and omitempty would erase the false.
+        type: boolean
       id:
         type: string
       image_path:
@@ -2185,6 +2201,33 @@ paths:
       security:
       - BearerAuth: []
       summary: Get datasheet content
+      tags:
+      - datasheets
+  /datasheets/{id}/extract:
+    post:
+      description: Re-read the text layer of one datasheet, or of every datasheet
+        still pending.
+      parameters:
+      - description: Datasheet id; omit to sweep everything pending
+        in: path
+        name: id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Extract datasheet text
       tags:
       - datasheets
   /datasheets/{id}/parts:

@@ -213,6 +213,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &bulkEnrichWorker{h: h, deps: deps})
 	river.AddWorker(workers, &datasheetMirrorWorker{h: h, deps: deps})
+	river.AddWorker(workers, &datasheetExtractWorker{h: h, deps: deps})
 	svc, err := jobs.New(pool, store, deps, workers)
 	if err != nil {
 		return nil, err

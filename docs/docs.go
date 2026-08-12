@@ -1667,6 +1667,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/datasheets/{id}/extract": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Re-read the text layer of one datasheet, or of every datasheet still pending.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "datasheets"
+                ],
+                "summary": "Extract datasheet text",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Datasheet id; omit to sweep everything pending",
+                        "name": "id",
+                        "in": "path"
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/datasheets/{id}/parts": {
             "post": {
                 "security": [
@@ -8718,6 +8759,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "has_datasheet": {
+                    "description": "HasDatasheet reports whether a stored PDF is linked to this part, so the\nparts list and the command palette can offer to open it without a\nper-row fetch. Populated by the list queries only; false elsewhere.\nNot omitempty: the client distinguishes \"no datasheet\" from \"not asked\",\nand omitempty would erase the false.",
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -8857,6 +8902,10 @@ const docTemplate = `{
                 },
                 "description": {
                     "type": "string"
+                },
+                "has_datasheet": {
+                    "description": "HasDatasheet reports whether a stored PDF is linked to this part, so the\nparts list and the command palette can offer to open it without a\nper-row fetch. Populated by the list queries only; false elsewhere.\nNot omitempty: the client distinguishes \"no datasheet\" from \"not asked\",\nand omitempty would erase the false.",
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string"
