@@ -15,6 +15,7 @@ import (
 	"github.com/firelabsca/firebin-api/internal/api/respond"
 	"github.com/firelabsca/firebin-api/internal/kicad"
 	"github.com/firelabsca/firebin-api/internal/models"
+	"github.com/firelabsca/firebin-api/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -740,9 +741,14 @@ func matchKey(l models.BOMLine) string {
 }
 
 // resolveMatch resolves a BOM line to an inventory part in priority order:
-// FireBin PN → project match rule → MPN → supplier SKU → value+footprint.
+// FireBin PN → project match rule → MPN → supplier SKU → value+footprint → tag.
 // The project rule captures manual choices so they apply across every board in
 // the project. Returns (nil, "none") when nothing matches.
+//
+// Tags are last, and deliberately so. Every rung above names one part by
+// construction; a tag names a kind of part and may cover a dozen, so it can only
+// answer a line the identifiers could not. It is also the only rung that
+// declines an ambiguous hit rather than picking from it — see tagMatch.
 func (h *Handler) resolveMatch(ctx context.Context, projectID uuid.UUID, l models.BOMLine) (*uuid.UUID, string) {
 	if l.IPN != "" {
 		if id, _, found, _ := h.Catalog.FindPartByIPN(ctx, l.IPN); found {
@@ -769,7 +775,69 @@ func (h *Handler) resolveMatch(ctx context.Context, projectID uuid.UUID, l model
 			return &id, "value_footprint"
 		}
 	}
+	if id, found := h.tagMatch(ctx, l); found {
+		return &id, "tag"
+	}
 	return nil, "none"
+}
+
+// tagsNamedBy returns every tag the line names, matching whole words only.
+//
+// Whole words, because substring matching would let a two-letter tag hit almost
+// every line in a BOM. A multi-word tag is matched as a phrase: "STEMMA QT" has
+// to appear as those two words in that order, or "QT" alone would claim it.
+//
+// Pure, so the decision this rung turns on is testable without a database.
+func tagsNamedBy(value, description string, tags []models.Tag) []models.Tag {
+	words := strings.Fields(strings.ToLower(value + " " + description))
+	if len(words) == 0 {
+		return nil
+	}
+	// Fold each word once, and every run of consecutive words, so a tag of any
+	// length is compared against the line on the same terms.
+	seen := map[string]bool{}
+	for i := range words {
+		run := ""
+		for j := i; j < len(words) && j < i+4; j++ {
+			run += words[j]
+			seen[repository.TagSlug(run)] = true
+		}
+	}
+	out := []models.Tag{}
+	for _, t := range tags {
+		if slug := repository.TagSlug(t.Name); slug != "" && seen[slug] {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// tagMatch resolves a BOM line by the words it uses, when nothing that names a
+// part has worked. A line reading "Qwiic connector" finds the JST SH header
+// whose part number nobody writes on a schematic.
+//
+// Two conditions, and both have to hold. The line must name exactly one tag, and
+// that tag must sit on exactly one part. A tag covering several parts is not a
+// defect — that is what a tag is for — but silently picking one of five Qwiic
+// connectors and reporting the line as matched is worse than leaving it
+// unmatched: an unmatched line asks to be looked at, and a wrongly matched one
+// gets ordered.
+func (h *Handler) tagMatch(ctx context.Context, l models.BOMLine) (uuid.UUID, bool) {
+	all, err := h.Tags.List(ctx)
+	if err != nil {
+		return uuid.Nil, false
+	}
+	named := tagsNamedBy(l.Value, l.Description, all)
+	if len(named) != 1 || named[0].PartCount != 1 {
+		return uuid.Nil, false
+	}
+	// Re-read rather than trusting the rolled-up count, which was computed
+	// before this import started.
+	ids, err := h.Tags.PartsWithTag(ctx, named[0].Slug)
+	if err != nil || len(ids) != 1 {
+		return uuid.Nil, false
+	}
+	return ids[0], true
 }
 
 // matchLines resolves each parsed BOM line to an inventory part.

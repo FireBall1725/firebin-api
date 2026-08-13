@@ -45,6 +45,24 @@ type ParameterTemplate struct {
 	Units *string   `json:"units,omitempty"`
 }
 
+// Tag is a name from the shared vocabulary: the word you reach for when you do
+// not remember the part number. A JST SH 1.0 mm header carries "Qwiic" and
+// "STEMMA QT" without either becoming its identity.
+//
+// Slug is the identity fold ("STEMMA QT", "stemma-qt" and "StemmaQT" are one
+// tag). It ships in the JSON because the web client keys on it and links by it;
+// Name is the spelling to display.
+type Tag struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Slug        string    `json:"slug"`
+	Colour      *string   `json:"colour,omitempty"` // palette slot name, not a hex
+	Description *string   `json:"description,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	PartCount   int       `json:"part_count"` // parts carrying this tag (List only)
+}
+
 type Part struct {
 	ID             uuid.UUID  `json:"id"`
 	CategoryID     *uuid.UUID `json:"category_id,omitempty"`
@@ -81,6 +99,11 @@ type Part struct {
 	VariantCount      int                `json:"variant_count,omitempty"`
 	ManufacturerParts []ManufacturerPart `json:"manufacturer_parts,omitempty"`
 	Alternatives      []PartAlternative  `json:"alternatives,omitempty"`
+
+	// Tags the part carries. Populated on the list queries as well as on a
+	// single read, because the command palette filters client-side over
+	// GET /parts and would never see a tag that only appeared on GET /parts/:id.
+	Tags []Tag `json:"tags,omitempty"`
 
 	// Primary MPN/manufacturer and bin, for the parts list (from List's laterals).
 	PrimaryMPN          string     `json:"primary_mpn,omitempty"`

@@ -118,6 +118,24 @@ func TestKeywordsCarrySearchIdentifiers(t *testing.T) {
 	}
 }
 
+// TestKeywordsCarryTags is the same argument as the identifiers above, applied
+// to the names a part answers to. A part tagged "Qwiic" in FireBin that does not
+// answer to "qwiic" in the Symbol Chooser has the tag in name only.
+//
+// A two-word tag splits into two tokens here. That is correct for this surface:
+// KiCad weights keywords per token, so "STEMMA QT" makes the part findable by
+// typing either half.
+func TestKeywordsCarryTags(t *testing.T) {
+	p := sampleResistor()
+	p.Tags = []string{"Qwiic", "STEMMA QT"}
+	kw := MapPart(p, "Resistors", "").Keywords
+	for _, want := range []string{"Qwiic", "STEMMA", "QT"} {
+		if !strings.Contains(kw, want) {
+			t.Errorf("keywords %q missing %q", kw, want)
+		}
+	}
+}
+
 // TestKeywordsDeduplicate keeps the term list from ballooning when the same
 // token arrives from several sources.
 func TestKeywordsDeduplicate(t *testing.T) {

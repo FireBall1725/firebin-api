@@ -51,6 +51,11 @@ type Toolbox struct {
 	Catalog    *repository.CatalogRepo
 	Projects   *repository.ProjectRepo
 
+	// Tags is the shared vocabulary of names a part answers to besides its own.
+	// Optional: when nil the tag tools are not offered, rather than offered and
+	// failing.
+	Tags *repository.TagRepo
+
 	// Datasheets and DatasheetText are a pair: metadata from Postgres, extracted
 	// page text from the sidecar on disk. Both optional, and the datasheet tools
 	// are only offered when both are present, so an instance without attachment
@@ -91,6 +96,9 @@ func (t *Toolbox) Tools() []Tool {
 		t.getProject(),
 		t.getBoard(),
 		t.boardPickList(),
+	}
+	if t.Tags != nil {
+		tools = append(tools, t.listTags(), t.tagPart())
 	}
 	if t.Datasheets != nil && t.DatasheetText != nil {
 		tools = append(tools, t.findDatasheet(), t.searchDatasheet(), t.readDatasheetPage())
@@ -233,13 +241,15 @@ func (t *Toolbox) searchParts() Tool {
 				"\"100 ohm\" will not match 100 kΩ, while a bare number like \"220\" matches the value " +
 				"printed on the part whatever its unit. `package` matches part of the name, so \"0603\" " +
 				"finds \"0603 (1608 Metric)\". `search` is free text over name, keywords, internal part " +
-				"number and manufacturer part number. Every filter is optional; with none it lists parts. " +
+				"number, manufacturer part number, and tags — the informal names a part also answers to, " +
+				"so \"qwiic\" finds the JST SH connector tagged with it. " +
+				"Every filter is optional; with none it lists parts. " +
 				"An empty result means the part is not in the inventory, which is a real answer. " +
 				"Results carry only the parameters that matched; call get_part for a part's full specification.",
 			Schema: schema(`{
 				"type":"object",
 				"properties":{
-					"search":{"type":"string","description":"free text over name, keywords, IPN and MPN"},
+					"search":{"type":"string","description":"free text over name, keywords, IPN, MPN and tags"},
 					"package":{"type":"string","description":"package substring, e.g. 0603"},
 					"parameter":{"type":"string","description":"restrict value to a named parameter, e.g. Resistance"},
 					"value":{"type":"string","description":"parameter value, e.g. 220 ohm, 4.7uF, X7R"},

@@ -25,7 +25,8 @@ func NewBackupRepo(pool *pgxpool.Pool) *BackupRepo { return &BackupRepo{pool: po
 // are deliberately excluded.
 var backupTables = []string{
 	"categories", "parameter_templates", "manufacturers", "suppliers", "storage_locations",
-	"users", "parts", "part_parameters", "manufacturer_parts", "supplier_parts",
+	"tags",
+	"users", "parts", "part_tags", "part_parameters", "manufacturer_parts", "supplier_parts",
 	"supplier_part_pricing", "stock_items", "stock_transactions", "part_images",
 	// Datasheet METADATA only. The PDFs live on the filesystem under
 	// ATTACHMENT_STORAGE_PATH and deliberately do not travel in the JSON export:

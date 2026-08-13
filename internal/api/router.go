@@ -115,8 +115,19 @@ func NewRouter(h *handlers.Handler) http.Handler {
 	protected("PATCH /api/v1/parts/{id}", h.UpdatePart)
 	protected("DELETE /api/v1/parts/{id}", h.DeletePart)
 	protected("POST /api/v1/parts/{id}/image", h.UploadPartImage)
+	protected("PUT /api/v1/parts/{id}/tags", h.SetPartTags)
+	protected("GET /api/v1/parts/{id}/tag-suggestions", h.SuggestPartTags)
 	// Public so it works as a plain <img src>, like the static /symbols/*.svg.
 	mux.HandleFunc("GET /api/v1/parts/{id}/image", h.GetPartImage)
+
+	// Tags: the shared vocabulary of names a part answers to besides its own.
+	// Delete is admin-only because it is the one operation that reaches every
+	// part at once and cannot be undone; merge at least keeps the links.
+	protected("GET /api/v1/tags", h.ListTags)
+	protected("POST /api/v1/tags", h.CreateTag)
+	protected("POST /api/v1/tags/{id}/merge", h.MergeTag)
+	protected("PATCH /api/v1/tags/{id}", h.UpdateTag)
+	admin("DELETE /api/v1/tags/{id}", h.DeleteTag)
 
 	// Datasheets. Reads stay open to viewers via RequireWriter's method check;
 	// the content route is protected rather than public (unlike the part image,
