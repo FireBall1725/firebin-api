@@ -190,6 +190,13 @@ func keywordsFor(p source.Part) string {
 	add(source.Deref(p.Package))
 	add(source.Deref(p.IPN))
 	add(p.PrimaryMPN)
+	// Tags, so the chooser answers to the same words the app does. A two-word
+	// tag splits into two tokens here, which is right for this surface: KiCad
+	// weights keywords per token, so "STEMMA QT" makes the part findable by
+	// typing either half.
+	for _, t := range p.Tags {
+		add(t)
+	}
 	for _, mp := range p.ManufacturerParts {
 		add(mp.MPN)
 		add(source.Deref(mp.ManufacturerName))

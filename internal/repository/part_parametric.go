@@ -16,13 +16,13 @@ import (
 // ParametricOptions searches parts by what they are rather than what they are
 // called.
 //
-// The existing List only substring-matches name, keywords, IPN and MPN, so a
-// part named "100 kΩ Resistor" with package "0603 (1608 Metric)" cannot be found
-// by asking for an 0603 220 Ω: the package lives in its own column that no
-// search reads, and the value lives in part_parameters, which no listing joins.
+// The existing List only substring-matches the names a part goes by, so a part
+// named "100 kΩ Resistor" with package "0603 (1608 Metric)" cannot be found by
+// asking for an 0603 220 Ω: the package lives in its own column that no search
+// reads, and the value lives in part_parameters, which no listing joins.
 type ParametricOptions struct {
 	CategoryID *uuid.UUID
-	Search     string // free text over name/keywords/IPN/MPN, as in List
+	Search     string // free text, via partSearchClause, exactly as in List
 	Package    string // substring, so "0603" finds "0603 (1608 Metric)"
 	Parameter  string // restrict Value to a named parameter, e.g. "Resistance"
 	Value      string // "220", "220 ohm", "4.7uF", or plain text like "X7R"
@@ -68,13 +68,9 @@ func (r *PartRepo) SearchParametric(ctx context.Context, opts ParametricOptions)
 		args = append(args, "%"+p+"%")
 		q.WriteString(` AND parts.package ILIKE $` + itoa(len(args)))
 	}
-	if s := strings.TrimSpace(opts.Search); s != "" {
-		args = append(args, "%"+s+"%")
-		n := itoa(len(args))
-		q.WriteString(` AND (parts.name ILIKE $` + n + ` OR parts.keywords ILIKE $` + n +
-			` OR parts.ipn ILIKE $` + n +
-			` OR EXISTS (SELECT 1 FROM manufacturer_parts mp WHERE mp.part_id = parts.id AND mp.mpn ILIKE $` + n + `))`)
-	}
+	var clause string
+	clause, args = partSearchClause(opts.Search, args)
+	q.WriteString(clause)
 	// A named parameter is a SQL filter on its own: a part without that
 	// parameter can never match, so there is no reason to read it.
 	if name := strings.TrimSpace(opts.Parameter); name != "" {

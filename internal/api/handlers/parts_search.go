@@ -24,7 +24,7 @@ import (
 // @Security    BearerAuth
 // @Produce     json
 // @Param       category   query     string  false  "Category id filter"
-// @Param       search     query     string  false  "Free text over name, keywords, IPN and MPN"
+// @Param       search     query     string  false  "Free text over name, keywords, IPN, MPN and tags"
 // @Param       package    query     string  false  "Package substring, e.g. 0603"
 // @Param       parameter  query     string  false  "Restrict the value filter to a named parameter, e.g. Resistance"
 // @Param       value      query     string  false  "Parameter value, e.g. 220, 220 ohm, 4.7uF, X7R"
@@ -70,5 +70,6 @@ func (h *Handler) SearchParts(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "could not search parts")
 		return
 	}
+	h.attachTagsToMatches(r.Context(), parts)
 	respond.JSON(w, http.StatusOK, parts)
 }

@@ -44,8 +44,15 @@ func scanPart(row pgx.Row) (*models.Part, error) {
 // ListOptions filters and shapes a part listing.
 type ListOptions struct {
 	CategoryID *uuid.UUID
-	Search     string
-	TopLevel   bool // only parts with no parent (templates + standalone parts)
+	Search     string // free text over name, keywords, IPN, MPN and tags
+	TopLevel   bool   // only parts with no parent (templates + standalone parts)
+	// Tag restricts the listing to parts carrying this tag, by slug.
+	//
+	// A server-side filter rather than one applied to the results, because List
+	// caps at 500: filtering after the fact would quietly answer "everything
+	// tagged Qwiic" with whatever survived an alphabetical cut, and an inventory
+	// that hides parts you own is the failure worth avoiding.
+	Tag string
 }
 
 // ListIdentities returns every part's id and category, with no limit and no
@@ -117,14 +124,14 @@ func (r *PartRepo) List(ctx context.Context, opts ListOptions) ([]models.Part, e
 		args = append(args, *opts.CategoryID)
 		q.WriteString(` AND parts.category_id = $` + itoa(len(args)))
 	}
-	if s := strings.TrimSpace(opts.Search); s != "" {
-		args = append(args, "%"+s+"%")
-		n := itoa(len(args))
-		// Match name/keywords/IPN, or any linked manufacturer part number.
-		q.WriteString(` AND (parts.name ILIKE $` + n + ` OR parts.keywords ILIKE $` + n +
-			` OR parts.ipn ILIKE $` + n +
-			` OR EXISTS (SELECT 1 FROM manufacturer_parts mp WHERE mp.part_id = parts.id AND mp.mpn ILIKE $` + n + `))`)
+	if tag := strings.TrimSpace(opts.Tag); tag != "" {
+		args = append(args, TagSlug(tag))
+		q.WriteString(` AND EXISTS (SELECT 1 FROM part_tags pt JOIN tags t ON t.id = pt.tag_id
+			WHERE pt.part_id = parts.id AND t.slug = $` + itoa(len(args)) + `)`)
 	}
+	var clause string
+	clause, args = partSearchClause(opts.Search, args)
+	q.WriteString(clause)
 	q.WriteString(` ORDER BY parts.name LIMIT 500`)
 
 	rows, err := r.pool.Query(ctx, q.String(), args...)

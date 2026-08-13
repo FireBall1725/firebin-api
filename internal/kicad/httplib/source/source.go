@@ -41,6 +41,11 @@ type Part struct {
 	KicadSymbol    *string
 	KicadFootprint *string
 	Keywords       *string
+	// Tags are the other names the part answers to. They fold into the chooser's
+	// keyword blob, which is the only reason they are here: KiCad's Symbol
+	// Chooser does not search custom fields, so a tag that is not in keywords
+	// might as well not exist inside KiCad.
+	Tags []string
 
 	TotalStock float64
 
@@ -112,6 +117,10 @@ func PartFromModel(p models.Part, mps []models.ManufacturerPart) Part {
 		TotalStock:          p.TotalStock,
 		PrimaryMPN:          p.PrimaryMPN,
 		PrimaryManufacturer: p.PrimaryManufacturer,
+	}
+
+	for _, t := range p.Tags {
+		out.Tags = append(out.Tags, t.Name)
 	}
 
 	for _, param := range p.Parameters {

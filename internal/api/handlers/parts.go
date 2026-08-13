@@ -52,7 +52,8 @@ type partRequest struct {
 // @Security    BearerAuth
 // @Produce     json
 // @Param       category   query     string                  false  "Category id filter"
-// @Param       search     query     string                  false  "Search text"
+// @Param       search     query     string                  false  "Search text over name, keywords, IPN, MPN and tags"
+// @Param       tag        query     string                  false  "Only parts carrying this tag, by slug"
 // @Param       top_level  query     string                  false  "Set to false to include all variants"
 // @Success     200  {array}   models.Part
 // @Failure     401  {object}  map[string]interface{}
@@ -60,6 +61,7 @@ type partRequest struct {
 func (h *Handler) ListParts(w http.ResponseWriter, r *http.Request) {
 	opts := repository.ListOptions{TopLevel: r.URL.Query().Get("top_level") != "false"}
 	opts.Search = r.URL.Query().Get("search")
+	opts.Tag = r.URL.Query().Get("tag")
 	if c := r.URL.Query().Get("category"); c != "" {
 		id, err := uuid.Parse(c)
 		if err != nil {
@@ -73,6 +75,7 @@ func (h *Handler) ListParts(w http.ResponseWriter, r *http.Request) {
 		respond.Error(w, http.StatusInternalServerError, "could not list parts")
 		return
 	}
+	h.attachTags(r.Context(), parts)
 	respond.JSON(w, http.StatusOK, parts)
 }
 
@@ -107,6 +110,9 @@ func (h *Handler) GetPart(w http.ResponseWriter, r *http.Request) {
 	// Attach alternates from cached enrichment of this part's MPNs, linked to
 	// inventory where we already stock them. Cache-only — no provider query.
 	p.Alternatives = h.resolveAlternatives(r, p.ManufacturerParts)
+	if tags, err := h.Tags.TagsForPart(r.Context(), id); err == nil {
+		p.Tags = tags
+	}
 	respond.JSON(w, http.StatusOK, p)
 }
 

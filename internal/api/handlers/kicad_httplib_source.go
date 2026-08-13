@@ -22,6 +22,7 @@ type kicadSource struct {
 	categories *repository.CategoryRepo
 	parts      *repository.PartRepo
 	catalog    *repository.CatalogRepo
+	tags       *repository.TagRepo
 }
 
 func (s kicadSource) Categories(ctx context.Context) ([]source.Category, error) {
@@ -71,6 +72,12 @@ func (s kicadSource) Part(ctx context.Context, id string) (*source.Part, error) 
 		// A part with unreadable manufacturer rows is still worth placing, so
 		// carry on with what the part itself holds rather than dropping it.
 		mps = nil
+	}
+	// Get does not populate tags, and they reach the chooser the same way MPNs
+	// do — through the keywords field — so an omission here is not a missing
+	// label but a part that stops answering to its own nickname inside KiCad.
+	if tags, err := s.tags.TagsForPart(ctx, pid); err == nil {
+		p.Tags = tags
 	}
 	out := source.PartFromModel(*p, mps)
 	return &out, nil

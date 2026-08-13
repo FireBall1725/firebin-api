@@ -1,0 +1,26 @@
+[
+  {
+    "tags": ["Qwiic", "STEMMA QT"],
+    "why": "SparkFun's Qwiic and Adafruit's STEMMA QT both use the JST SH 1.0 mm 4-pin connector, and neither brand name appears on the part.",
+    "mpn_prefixes": ["SM04B-SRSS", "BM04B-SRSS", "SHR-04V", "SM04B-SRSS-TB"],
+    "all_of": ["jst sh", "4"]
+  },
+  {
+    "tags": ["Grove"],
+    "why": "Seeed's Grove system uses a 4-pin 2.0 mm connector.",
+    "mpn_prefixes": ["110990030", "SM04B-PASS", "B4B-PH-K"],
+    "all_of": ["grove"]
+  },
+  {
+    "tags": ["NeoPixel"],
+    "why": "NeoPixel is Adafruit's name for the WS2812 and SK6812 addressable LED family.",
+    "mpn_prefixes": ["WS2812", "SK6812", "WS2813", "WS2815"],
+    "all_of": []
+  },
+  {
+    "tags": ["DuPont"],
+    "why": "Jumper wires and 2.54 mm headers are almost universally called DuPont, after the original connector brand.",
+    "mpn_prefixes": [],
+    "all_of": ["2.54", "header"]
+  }
+]

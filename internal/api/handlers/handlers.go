@@ -34,6 +34,7 @@ type Handler struct {
 
 	Categories     *repository.CategoryRepo
 	Parts          *repository.PartRepo
+	Tags           *repository.TagRepo
 	Projects       *repository.ProjectRepo
 	Locations      *repository.LocationRepo
 	Stock          *repository.StockRepo
@@ -166,6 +167,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 		Tokens:         repository.NewTokenRepo(pool),
 		Categories:     repository.NewCategoryRepo(pool),
 		Parts:          repository.NewPartRepo(pool),
+		Tags:           repository.NewTagRepo(pool),
 		Projects:       repository.NewProjectRepo(pool),
 		Locations:      repository.NewLocationRepo(pool),
 		Stock:          repository.NewStockRepo(pool),
@@ -200,7 +202,7 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 	// served until the middleware sees it enabled.
 	kicadLog := slog.Default().With("component", "kicad-library")
 	h.KicadHTTPCache = httplib.NewCache(
-		kicadSource{categories: h.Categories, parts: h.Parts, catalog: h.Catalog},
+		kicadSource{categories: h.Categories, parts: h.Parts, catalog: h.Catalog, tags: h.Tags},
 		kicadUnmappedMarker,
 		kicadSnapshotTTL,
 		kicadLog,

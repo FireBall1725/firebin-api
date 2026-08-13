@@ -26,6 +26,13 @@ func (h *Handler) assistantToolbox() *assistant.Toolbox {
 		Catalog:    h.Catalog,
 		Projects:   h.Projects,
 
+		// The one write besides add-a-reference-part. Deliberate: a tag is
+		// additive and reversible, it cannot change what a part IS, and "call
+		// this one qwiic" is exactly the kind of thing you want to say out loud
+		// rather than click through. Nothing here can delete a tag from the
+		// vocabulary — only take one off a part.
+		Tags: h.Tags,
+
 		// Read-only, like everything else here: the tools can find, search and
 		// read a stored datasheet, and cannot upload, delete, or relink one.
 		Datasheets:    h.Datasheets,

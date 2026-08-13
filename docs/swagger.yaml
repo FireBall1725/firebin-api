@@ -647,6 +647,14 @@ definitions:
           total_stock — a part drained to zero looks identical to one that never
           arrived.
         type: boolean
+      tags:
+        description: |-
+          Tags the part carries. Populated on the list queries as well as on a
+          single read, because the command palette filters client-side over
+          GET /parts and would never see a tag that only appeared on GET /parts/:id.
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Tag'
+        type: array
       total_stock:
         description: Joined / computed, populated on some reads.
         type: number
@@ -760,6 +768,14 @@ definitions:
           total_stock — a part drained to zero looks identical to one that never
           arrived.
         type: boolean
+      tags:
+        description: |-
+          Tags the part carries. Populated on the list queries as well as on a
+          single read, because the command palette filters client-side over
+          GET /parts and would never see a tag that only appeared on GET /parts/:id.
+        items:
+          $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Tag'
+        type: array
       total_stock:
         description: Joined / computed, populated on some reads.
         type: number
@@ -1095,6 +1111,27 @@ definitions:
       url:
         type: string
     type: object
+  github_com_firelabsca_firebin-api_internal_models.Tag:
+    properties:
+      colour:
+        description: palette slot name, not a hex
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      part_count:
+        description: parts carrying this tag (List only)
+        type: integer
+      slug:
+        type: string
+      updated_at:
+        type: string
+    type: object
   github_com_firelabsca_firebin-api_internal_models.Task:
     properties:
       args_summary:
@@ -1164,6 +1201,15 @@ definitions:
         type: integer
       unlinked:
         type: integer
+    type: object
+  github_com_firelabsca_firebin-api_internal_tags.Suggestion:
+    properties:
+      tags:
+        items:
+          type: string
+        type: array
+      why:
+        type: string
     type: object
   internal_api_handlers.datasheetLinkRequest:
     properties:
@@ -3860,9 +3906,13 @@ paths:
         in: query
         name: category
         type: string
-      - description: Search text
+      - description: Search text over name, keywords, IPN, MPN and tags
         in: query
         name: search
+        type: string
+      - description: Only parts carrying this tag, by slug
+        in: query
+        name: tag
         type: string
       - description: Set to false to include all variants
         in: query
@@ -4323,6 +4373,88 @@ paths:
       summary: List part stock history
       tags:
       - stock
+  /parts/{id}/tag-suggestions:
+    get:
+      description: Well-known nicknames for a recognised part, minus any it already
+        carries. Suggestions only; nothing is applied.
+      parameters:
+      - description: identifier
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_tags.Suggestion'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Suggest tags for a part
+      tags:
+      - parts
+  /parts/{id}/tags:
+    put:
+      consumes:
+      - application/json
+      description: Replace a part's tags with exactly these names, creating any that
+        are new.
+      parameters:
+      - description: identifier
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: request body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Tag'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Set part tags
+      tags:
+      - parts
   /parts/bulk/enrich:
     post:
       consumes:
@@ -4466,7 +4598,7 @@ paths:
         in: query
         name: category
         type: string
-      - description: Free text over name, keywords, IPN and MPN
+      - description: Free text over name, keywords, IPN, MPN and tags
         in: query
         name: search
         type: string
@@ -6007,6 +6139,197 @@ paths:
       summary: List suppliers
       tags:
       - catalog
+  /tags:
+    get:
+      description: Return every tag with the number of parts carrying it.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Tag'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List tags
+      tags:
+      - tags
+    post:
+      consumes:
+      - application/json
+      description: Create a tag. A name that folds onto an existing tag is a conflict,
+        not a second spelling.
+      parameters:
+      - description: request body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Tag'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create tag
+      tags:
+      - tags
+  /tags/{id}:
+    delete:
+      description: Delete a tag and remove it from every part.
+      parameters:
+      - description: identifier
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete tag
+      tags:
+      - tags
+    patch:
+      consumes:
+      - application/json
+      description: Rename or recolour a tag. A rename onto another tag's name is a
+        conflict; use merge instead.
+      parameters:
+      - description: identifier
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: request body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.Tag'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update tag
+      tags:
+      - tags
+  /tags/{id}/merge:
+    post:
+      consumes:
+      - application/json
+      description: Move every part carrying this tag onto another, then delete this
+        one.
+      parameters:
+      - description: identifier
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: request body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Merge tags
+      tags:
+      - tags
   /tasks:
     delete:
       description: Delete every finished task and its logs; running or queued tasks
