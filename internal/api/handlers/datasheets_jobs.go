@@ -179,6 +179,19 @@ func (w *datasheetExtractWorker) Work(ctx context.Context, job *river.Job[Datash
 				r.Log("warn", "%s: could not write extracted text: %v", d.Filename, werr)
 			}
 
+			// The title the document declares about itself, when it declares a
+			// usable one and nobody has named it. Only ever fills a blank: a
+			// title someone typed outranks metadata a converter wrote, and this
+			// runs unattended across the whole library.
+			if res.Title != "" && (d.Title == nil || *d.Title == "") &&
+				!strings.EqualFold(res.Title, d.Filename) {
+				if err := w.h.Datasheets.SetTitleIfUnset(rctx, id, res.Title); err != nil {
+					r.Log("warn", "%s: could not record the title: %v", d.Filename, err)
+				} else {
+					r.Log("info", "%s: titled %q from the PDF", d.Filename, res.Title)
+				}
+			}
+
 			pages := res.PageCount
 			var pagesPtr *int
 			if pages > 0 {

@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -291,13 +292,38 @@ func (h *Handler) UploadDatasheet(w http.ResponseWriter, r *http.Request) {
 	respond.JSON(w, http.StatusCreated, full)
 }
 
+// datasheetPatchRequest is a partial update, so it has to tell an absent field
+// from one explicitly set to null. Both are meaningful: absent means leave it
+// alone, null means clear it. Without the distinction, saving a category would
+// wipe the title, because a decoded-but-missing *string is indistinguishable
+// from one the caller sent as null.
 type datasheetPatchRequest struct {
-	Title *string `json:"title"`
+	Title      *string    `json:"title"`
+	CategoryID *uuid.UUID `json:"category_id"`
+
+	// present is the raw object, kept only to answer "was this key sent".
+	present map[string]json.RawMessage
 }
 
-// UpdateDatasheet renames a datasheet.
+func (p *datasheetPatchRequest) UnmarshalJSON(b []byte) error {
+	// The alias sheds the method set, so this does not recurse.
+	type alias datasheetPatchRequest
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*p = datasheetPatchRequest(a)
+	return json.Unmarshal(b, &p.present)
+}
+
+func (p *datasheetPatchRequest) has(field string) bool {
+	_, ok := p.present[field]
+	return ok
+}
+
+// UpdateDatasheet changes a datasheet's title or category.
 // @Summary     Update datasheet
-// @Description Change a datasheet's display title.
+// @Description Change a datasheet's display title or the category it is filed under. Only the fields present in the body are changed; send null to clear one.
 // @Tags        datasheets
 // @Security    BearerAuth
 // @Accept      json
@@ -318,9 +344,26 @@ func (h *Handler) UpdateDatasheet(w http.ResponseWriter, r *http.Request) {
 	if !respond.Decode(w, r, &req) {
 		return
 	}
-	if err := h.Datasheets.SetTitle(r.Context(), id, req.Title); err != nil {
-		respond.Error(w, http.StatusInternalServerError, "could not update the datasheet")
-		return
+	if req.has("title") {
+		// An all-whitespace title is a cleared one, not a title made of spaces.
+		title := req.Title
+		if title != nil {
+			if t := strings.TrimSpace(*title); t == "" {
+				title = nil
+			} else {
+				title = &t
+			}
+		}
+		if err := h.Datasheets.SetTitle(r.Context(), id, title); err != nil {
+			respond.Error(w, http.StatusInternalServerError, "could not update the datasheet")
+			return
+		}
+	}
+	if req.has("category_id") {
+		if err := h.Datasheets.SetCategory(r.Context(), id, req.CategoryID); err != nil {
+			respond.Error(w, http.StatusInternalServerError, "could not update the datasheet")
+			return
+		}
 	}
 	d, err := h.Datasheets.Get(r.Context(), id)
 	if err != nil || d == nil {

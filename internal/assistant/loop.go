@@ -5,10 +5,12 @@ package assistant
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/firelabsca/firebin-api/internal/ai"
 )
@@ -19,6 +21,17 @@ import (
 // is looping, and each round costs a real request. Eight is enough for the
 // questions this is for: find candidates, read two of them, price one, answer.
 const maxToolRounds = 8
+
+// maxUnparsedRetries is how many times a turn will re-ask after the runtime
+// threw out the model's tool call as unparseable.
+//
+// Three, from measurement rather than taste. This is a sampling accident — no
+// temperature is set, so the model runs at its own default and a re-ask usually
+// comes out clean — but gpt-oss:20b on Ollama went two-for-two wrong often
+// enough in testing to lose questions at a cap of two. A retry costs one request
+// and no round budget, so the third is nearly free; going much further would
+// only make a model whose tool calling is simply broken take longer to say so.
+const maxUnparsedRetries = 3
 
 // ErrNoProvider is returned when the assistant is on but nothing is configured
 // to answer with.
@@ -63,6 +76,57 @@ type Runner struct {
 	// HistoryBudget caps how many tokens of past conversation are replayed.
 	// Zero picks a default from where the provider runs.
 	HistoryBudget int
+	// OnRound, when set, is handed a record of every provider call as it
+	// completes. Called for failed rounds too: a turn that dies mid-round is the
+	// one you most want a log of, and waiting until the turn finished to report
+	// would lose exactly those.
+	//
+	// Runs inline, so a slow implementation slows the turn. Keep it to a write.
+	OnRound func(RoundLog)
+}
+
+// RoundLog is one provider call, for the debug log.
+type RoundLog struct {
+	Round int
+	URL   string
+	// Request and Response are raw JSON as it went over the wire. Not the
+	// neutral ChatRequest: the provider-specific options are the ones that
+	// break a call, and they do not appear in the neutral shape.
+	Request  json.RawMessage
+	Response json.RawMessage
+	// Thinking is the model's reasoning, when it reported any.
+	Thinking     string
+	Status       int
+	InputTokens  int
+	OutputTokens int
+	DurationMS   int
+	Err          string
+}
+
+// recordRound assembles a RoundLog and hands it over, if anyone is listening.
+func (r *Runner) recordRound(round int, rec *ai.RoundRecord, resp *ai.ChatResponse, started time.Time, callErr error) {
+	if r.OnRound == nil {
+		return
+	}
+	url, req, respRaw, status, recErr := rec.Snapshot()
+	log := RoundLog{
+		Round:      round,
+		URL:        url,
+		Request:    req,
+		Response:   respRaw,
+		Status:     status,
+		DurationMS: int(time.Since(started).Milliseconds()),
+		Err:        recErr,
+	}
+	if callErr != nil {
+		log.Err = callErr.Error()
+	}
+	if resp != nil {
+		log.Thinking = resp.Thinking
+		log.InputTokens = resp.Usage.InputTokens
+		log.OutputTokens = resp.Usage.OutputTokens
+	}
+	r.OnRound(log)
 }
 
 // Ask runs one question to completion: call the provider, run whatever tools it
@@ -109,12 +173,32 @@ func (r *Runner) Ask(ctx context.Context, history []ai.Message, question string)
 	turn := &Turn{}
 	turn.Usage.ModelID = r.Provider.ConfiguredModel()
 
+	unparsed := 0
 	for round := 0; round < maxToolRounds; round++ {
-		resp, err := r.Provider.Chat(ctx, ai.ChatRequest{
+		rec := ai.NewRoundRecord()
+		started := time.Now()
+		resp, err := r.Provider.Chat(ai.WithRecorder(ctx, rec), ai.ChatRequest{
 			System:   system,
 			Messages: messages,
 			Tools:    r.Tools.Defs(),
 		})
+		r.recordRound(round+1, rec, resp, started, err)
+		// The runtime threw the model's tool call away as unparseable. Nothing
+		// downstream can repair arguments that arrived with an ellipsis in them,
+		// but the conversation is untouched by a failed round, so asking again is
+		// both safe and usually enough.
+		if errors.Is(err, ai.ErrToolCallUnparsed) && unparsed < maxUnparsedRetries {
+			unparsed++
+			slog.Warn("retrying a round the runtime could not parse",
+				"model", r.Provider.ConfiguredModel(), "attempt", unparsed, "error", err)
+			// Not counted against the round budget. That budget exists to stop a
+			// model calling tools forever; a round the runtime threw away did no
+			// work and looked at nothing, so charging the turn for it just means
+			// a question that hit two bad samples has two fewer lookups to answer
+			// with. maxUnparsedRetries is the bound here.
+			round--
+			continue
+		}
 		if err != nil {
 			// Return the partial turn, not nil. It carries the tools already
 			// run and the tokens already spent, and both matter: the caller
@@ -136,6 +220,19 @@ func (r *Runner) Ask(ctx context.Context, history []ai.Message, question string)
 			return turn, messages[addedFrom:], fmt.Errorf("the model ran out of output tokens before finishing")
 		}
 
+		// A local runtime that fails to encode a tool call sometimes writes the
+		// call into the answer instead. The model chose the tool and the
+		// arguments; only the wire format failed, so read the call back out
+		// rather than showing the user a JSON object where the answer should be.
+		if len(resp.ToolCalls) == 0 && strings.TrimSpace(resp.Text) != "" {
+			if call, ok := strayToolCall(resp.Text, r.Tools.Defs()); ok {
+				slog.Warn("recovered a tool call from the model's answer",
+					"model", r.Provider.ConfiguredModel(), "tool", call.Name, "round", round+1)
+				resp.ToolCalls = []ai.ToolCall{call}
+				resp.Text = ""
+			}
+		}
+
 		messages = append(messages, ai.Message{
 			Role: ai.RoleAssistant, Text: resp.Text, ToolCalls: resp.ToolCalls,
 		})
@@ -151,6 +248,14 @@ func (r *Runner) Ask(ctx context.Context, history []ai.Message, question string)
 					"%s returned nothing: no answer and no tool call. The model may be out of context for this conversation, or unable to use tools",
 					r.Provider.Info().DisplayName)
 			}
+			// A JSON object that survived the recovery above is a call that could
+			// not be matched to a tool. It is not an answer, and rendering it as
+			// one is how this failure reached the user in the first place.
+			if isJSONObject(unfence(strings.TrimSpace(resp.Text))) {
+				return turn, messages[addedFrom:], fmt.Errorf(
+					"%s wrote a tool call instead of making one, and it matched no tool here. This usually means the model's tool calling is unreliable on this runtime; a different model is the fix",
+					r.Provider.Info().DisplayName)
+			}
 			turn.Text = resp.Text
 			return turn, messages[addedFrom:], nil
 		}
@@ -160,6 +265,9 @@ func (r *Runner) Ask(ctx context.Context, history []ai.Message, question string)
 		// pairing Anthropic requires.
 		results := make([]ai.ToolResult, 0, len(resp.ToolCalls))
 		for _, call := range resp.ToolCalls {
+			// Repaired here as well as inside Run, so the step recorded for the
+			// user names the tool that ran and not the mangled name it arrived as.
+			call = r.Tools.Normalise(call)
 			// Check cancellation between tools: a long chain should stop when
 			// the caller has gone away, not finish reading the database first.
 			if err := ctx.Err(); err != nil {
@@ -213,6 +321,7 @@ Reading a datasheet:
 - find_datasheet, then search_datasheet for the pages that matter, then read_datasheet_page for one of them. Do not ask to read a whole document; a reference manual runs to a thousand pages and reading it blindly costs the room you need to answer.
 - When the [Viewing:] line names a datasheet and its id, that is the document the user is looking at. Pass that id straight to search_datasheet; do not call find_datasheet first, and do not ask which datasheet they mean.
 - Never answer an electrical question from what you remember about a part. A supply voltage, a current figure, a pinout or a register address must come out of the document, and you should say which page it came from.
+- Write that citation as the words "page 51", in the sentence that uses the figure. The reader has the document open beside your answer and those words become a link that takes them to it, so the wording is load-bearing. Never use a citation marker such as 【51†L4-L11】; it is not rendered and the reader sees the brackets.
 - text_status 'no_text_layer' means the document is a scan with no readable text. Say that plainly. Do not guess at its contents, and do not describe what a datasheet for that part usually contains.
 - A datasheet in another language is still readable; answer in the user's language and say which document you read.
 - Quote the figure and its conditions together. A current is meaningless without the mode and temperature it was measured at, and a maximum rating is not an operating point.

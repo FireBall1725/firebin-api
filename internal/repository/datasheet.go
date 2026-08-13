@@ -25,7 +25,7 @@ func NewDatasheetRepo(pool *pgxpool.Pool) *DatasheetRepo { return &DatasheetRepo
 // SELECTs join and need one. Derived from a single list rather than written
 // twice, so they cannot drift apart.
 const datasheetColList = `id, sha256, filename, title, mime, size_bytes, page_count,
-	source_url, origin, language, text_status, extracted_at, created_at, updated_at`
+	source_url, origin, language, text_status, extracted_at, category_id, created_at, updated_at`
 
 // datasheetCols is the same list qualified with the `d` alias used by the
 // SELECT queries below.
@@ -44,7 +44,8 @@ func scanDatasheet(row pgx.Row) (*models.Datasheet, error) {
 	var d models.Datasheet
 	if err := row.Scan(
 		&d.ID, &d.SHA256, &d.Filename, &d.Title, &d.Mime, &d.SizeBytes, &d.PageCount,
-		&d.SourceURL, &d.Origin, &d.Language, &d.TextStatus, &d.ExtractedAt, &d.CreatedAt, &d.UpdatedAt,
+		&d.SourceURL, &d.Origin, &d.Language, &d.TextStatus, &d.ExtractedAt, &d.CategoryID,
+		&d.CreatedAt, &d.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -157,12 +158,15 @@ func (r *DatasheetRepo) List(ctx context.Context, opts DatasheetListOptions) ([]
 			WHERE dp.datasheet_id = d.id AND dp.part_id = $` + itoa(len(args)) + `)`)
 	}
 	if opts.CategoryID != nil {
-		// Category is a property of the linked parts, not of the document, so an
-		// unlinked datasheet correctly matches no category filter.
+		// Either the document's own category or one borrowed from a linked part.
+		// The borrowed form came first and is still right for a mirrored
+		// datasheet; the OR is what lets a loose upload be sorted at all, since
+		// it has no parts to borrow from.
 		args = append(args, *opts.CategoryID)
-		q.WriteString(` AND EXISTS (SELECT 1 FROM datasheet_parts dp
+		n := itoa(len(args))
+		q.WriteString(` AND (d.category_id = $` + n + ` OR EXISTS (SELECT 1 FROM datasheet_parts dp
 			JOIN parts p ON p.id = dp.part_id
-			WHERE dp.datasheet_id = d.id AND p.category_id = $` + itoa(len(args)) + `)`)
+			WHERE dp.datasheet_id = d.id AND p.category_id = $` + n + `))`)
 	}
 	if s := strings.TrimSpace(opts.Search); s != "" {
 		args = append(args, "%"+s+"%")
@@ -271,9 +275,34 @@ func (r *DatasheetRepo) UnlinkPart(ctx context.Context, dsID, partID uuid.UUID) 
 	return err
 }
 
-// SetTitle renames a datasheet.
+// SetTitle renames a datasheet. A nil title clears it, falling back to the
+// filename wherever the title is displayed.
 func (r *DatasheetRepo) SetTitle(ctx context.Context, id uuid.UUID, title *string) error {
-	_, err := r.pool.Exec(ctx, `UPDATE datasheets SET title = $2 WHERE id = $1`, id, title)
+	_, err := r.pool.Exec(ctx,
+		`UPDATE datasheets SET title = $2, updated_at = NOW() WHERE id = $1`, id, title)
+	return err
+}
+
+// SetTitleIfUnset fills in a title only where there is none.
+//
+// Used by extraction, which reads the title the PDF declares about itself. That
+// is a guess and a person's is not, so it must never overwrite one: the WHERE
+// clause is the whole point of this being separate from SetTitle.
+func (r *DatasheetRepo) SetTitleIfUnset(ctx context.Context, id uuid.UUID, title string) error {
+	if strings.TrimSpace(title) == "" {
+		return nil
+	}
+	_, err := r.pool.Exec(ctx, `
+		UPDATE datasheets SET title = $2, updated_at = NOW()
+		WHERE id = $1 AND (title IS NULL OR title = '')`, id, title)
+	return err
+}
+
+// SetCategory files a datasheet under a category of its own. A nil id clears it,
+// leaving the document sorted by whatever parts it is linked to.
+func (r *DatasheetRepo) SetCategory(ctx context.Context, id uuid.UUID, categoryID *uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE datasheets SET category_id = $2, updated_at = NOW() WHERE id = $1`, id, categoryID)
 	return err
 }
 

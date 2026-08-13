@@ -39,6 +39,9 @@ func streamLines(ctx context.Context, url string, body any, setHeaders func(http
 	if err != nil {
 		return fmt.Errorf("encode request: %w", err)
 	}
+	rec := recorderFrom(ctx)
+	rec.request(url, buf)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(buf))
 	if err != nil {
 		return err
@@ -51,13 +54,15 @@ func streamLines(ctx context.Context, url string, body any, setHeaders func(http
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		rec.fail(err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxProviderBody))
-		return fmt.Errorf("%s", providerError(resp.StatusCode, raw))
+		rec.response(resp.StatusCode, raw)
+		return classifyProviderError(providerError(resp.StatusCode, raw))
 	}
 
 	sc := bufio.NewScanner(resp.Body)
@@ -68,6 +73,9 @@ func streamLines(ctx context.Context, url string, body any, setHeaders func(http
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		// Accumulated frame by frame: a streamed response has no single body,
+		// and the frames are what show a tool call being assembled.
+		rec.appendResponse(sc.Text())
 		if err := onLine(sc.Text()); err != nil {
 			return err
 		}

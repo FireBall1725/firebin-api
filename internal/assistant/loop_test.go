@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -498,5 +499,103 @@ func TestUsageEventsAreSnapshots(t *testing.T) {
 	}
 	if first == nil || first.InputTokens != 100 {
 		t.Errorf("the first event now reads %+v; it was mutated by a later round", first)
+	}
+}
+
+// A local runtime that loses the tool-call encoding writes the call into the
+// answer instead. The model picked the tool and the arguments; only the wire
+// format failed, so the turn should carry on rather than showing the user a
+// JSON object where the answer belongs.
+func TestAToolCallWrittenAsTheAnswerIsRecovered(t *testing.T) {
+	provider := &scriptedProvider{replies: []ai.ChatResponse{
+		{Text: `{"name":"list_categories","arguments":{}}`},
+		{Text: "You have 3 categories."},
+	}}
+	r := &Runner{Provider: provider, Tools: &Toolbox{}}
+
+	turn, _, err := r.Ask(context.Background(), nil, "how many categories")
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	if turn.Text != "You have 3 categories." {
+		t.Errorf("text = %q, want the answer from the round after the recovery", turn.Text)
+	}
+	if len(turn.Steps) != 1 || turn.Steps[0].Tool != "list_categories" {
+		t.Fatalf("the recovered call did not run: steps = %+v", turn.Steps)
+	}
+}
+
+// A JSON object that is not any tool's call is not an answer either. Rendering
+// it as one is how this failure reached the user in the first place.
+func TestAnUnrecognisableJSONReplyIsAFailureNotAnAnswer(t *testing.T) {
+	provider := &scriptedProvider{replies: []ai.ChatResponse{
+		{Text: `{"datasheet_id":"x","page":64,"unexpected":true}`},
+	}}
+	r := &Runner{Provider: provider, Tools: &Toolbox{}}
+
+	turn, _, err := r.Ask(context.Background(), nil, "max voltage")
+	if err == nil {
+		t.Fatal("a raw tool call was accepted as the answer")
+	}
+	if turn.Text != "" {
+		t.Errorf("text = %q, want it withheld", turn.Text)
+	}
+	if !strings.Contains(err.Error(), "tool call") {
+		t.Errorf("error does not say what went wrong: %v", err)
+	}
+}
+
+// unparsedThenFine fails the first n rounds the way Ollama does when the model
+// writes tool-call arguments it cannot parse, then behaves.
+type unparsedThenFine struct {
+	fails  int
+	calls  int
+	answer string
+}
+
+func (p *unparsedThenFine) Info() ai.ProviderInfo {
+	return ai.ProviderInfo{Name: "flaky", DisplayName: "Flaky"}
+}
+func (p *unparsedThenFine) Configure(map[string]string) {}
+func (p *unparsedThenFine) Enabled() bool               { return true }
+func (p *unparsedThenFine) ConfiguredModel() string     { return "flaky-1" }
+func (p *unparsedThenFine) Chat(context.Context, ai.ChatRequest) (*ai.ChatResponse, error) {
+	p.calls++
+	if p.calls <= p.fails {
+		return nil, fmt.Errorf("ollama: %w", ai.ErrToolCallUnparsed)
+	}
+	return &ai.ChatResponse{Text: p.answer}, nil
+}
+
+// The runtime throwing away the model's tool call is a sampling accident, not a
+// property of the question. Asking again is safe: a round that errored added
+// nothing to the conversation.
+func TestARoundTheRuntimeCouldNotParseIsRetried(t *testing.T) {
+	provider := &unparsedThenFine{fails: 2, answer: "3.6 V absolute maximum."}
+	r := &Runner{Provider: provider, Tools: &Toolbox{}}
+
+	turn, _, err := r.Ask(context.Background(), nil, "max voltage")
+	if err != nil {
+		t.Fatalf("Ask: %v", err)
+	}
+	if turn.Text != "3.6 V absolute maximum." {
+		t.Errorf("text = %q", turn.Text)
+	}
+	if provider.calls != 3 {
+		t.Errorf("provider called %d times, want 2 retries and an answer", provider.calls)
+	}
+}
+
+// A model whose tool calling is simply broken has to be reported, not retried
+// until the round budget is gone.
+func TestRetriesForAnUnparseableToolCallAreCapped(t *testing.T) {
+	provider := &unparsedThenFine{fails: 99}
+	r := &Runner{Provider: provider, Tools: &Toolbox{}}
+
+	if _, _, err := r.Ask(context.Background(), nil, "max voltage"); err == nil {
+		t.Fatal("a permanently broken runtime was never reported")
+	}
+	if provider.calls != maxUnparsedRetries+1 {
+		t.Errorf("provider called %d times, want %d", provider.calls, maxUnparsedRetries+1)
 	}
 }

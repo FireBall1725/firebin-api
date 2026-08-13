@@ -97,6 +97,7 @@ func (h *Handler) StreamMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	runner := &assistant.Runner{Provider: provider, Tools: h.assistantToolbox()}
+	runner.OnRound = h.roundLogger(ctx, &conv.ID, provider.Info().Name, provider.ConfiguredModel())
 	turn, added, askErr := runner.AskStream(ctx, history, question, func(ev assistant.Event) {
 		send(ev.Kind, ev)
 	})

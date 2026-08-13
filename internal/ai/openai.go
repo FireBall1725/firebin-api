@@ -150,8 +150,10 @@ func (c openAIChat) chat(ctx context.Context, req ChatRequest, priced map[string
 	}
 
 	choice := out.Choices[0]
+	openaiTextOnly, openaiThinkingOnly := splitThinking(choice.Message.Content)
 	resp := &ChatResponse{
-		Text:      stripThinking(choice.Message.Content),
+		Text:      openaiTextOnly,
+		Thinking:  openaiThinkingOnly,
 		Truncated: choice.FinishReason == "length",
 	}
 	for i, tc := range choice.Message.ToolCalls {
@@ -357,7 +359,9 @@ func (c openAIChat) chatStream(ctx context.Context, req ChatRequest, priced map[
 		return nil, err
 	}
 
-	resp.Text = stripThinking(text.String())
+	textOut, inlineThinking := splitThinking(text.String())
+	resp.Text = textOut
+	resp.Thinking = inlineThinking
 	resp.Truncated = finish == "length"
 	for _, i := range order {
 		p := calls[i]

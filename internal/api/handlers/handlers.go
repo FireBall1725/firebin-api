@@ -7,6 +7,7 @@ package handlers
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/firelabsca/firebin-api/internal/ai"
 	"github.com/firelabsca/firebin-api/internal/auth"
@@ -219,5 +220,25 @@ func New(cfg *config.Config, pool *pgxpool.Pool, jwt *auth.JWTService) (*Handler
 		return nil, err
 	}
 	h.Jobs = svc
+
+	// Assistant round logs are the one table that would grow without bound: each
+	// row holds a whole provider request, and a tool-calling turn re-sends the
+	// conversation every round. Hung off the sweep that already runs hourly
+	// rather than a ticker of its own.
+	svc.ExtraPrune = func(ctx context.Context) {
+		n, err := h.Assistant.PruneRoundLogs(ctx, time.Now().Add(-assistantLogRetention))
+		if err != nil {
+			slog.Warn("prune assistant round logs", "error", err)
+			return
+		}
+		if n > 0 {
+			slog.Info("pruned assistant round logs", "count", n, "retention", assistantLogRetention.String())
+		}
+	}
 	return h, nil
 }
+
+// assistantLogRetention is how long a provider call's request and response are
+// kept. Long enough to debug something reported a few days late, short enough
+// that the rows never become a storage problem.
+const assistantLogRetention = 7 * 24 * time.Hour

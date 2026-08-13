@@ -225,6 +225,11 @@ func NewRouter(h *handlers.Handler) http.Handler {
 
 	// The assistant. Admin-only: these routes hand out provider configuration
 	// and spend real money on a test call.
+	protected("GET /api/v1/assistant/conversations/{id}/logs", h.ConversationLogs)
+
+	admin("GET /api/v1/settings/assistant/logs", h.AssistantLogs)
+	admin("DELETE /api/v1/settings/assistant/logs", h.ClearAssistantLogs)
+
 	admin("GET /api/v1/settings/ai", h.GetAISettings)
 	admin("PUT /api/v1/settings/ai", h.UpdateAISettings)
 	admin("POST /api/v1/settings/ai/{name}/test", h.TestAIProvider)

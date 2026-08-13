@@ -52,8 +52,13 @@ type Datasheet struct {
 	Language    *string    `json:"language,omitempty"`
 	TextStatus  string     `json:"text_status"`
 	ExtractedAt *time.Time `json:"extracted_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	// CategoryID is the document's own category, set by hand. Null is the normal
+	// state for a mirrored datasheet, which is sorted by the parts it is linked
+	// to; this exists so a loose upload can be sorted without inventing a part
+	// for it. The name is not carried: the web already holds the category list.
+	CategoryID *uuid.UUID `json:"category_id,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 
 	Parts []DatasheetPartLink `json:"parts"`
 }

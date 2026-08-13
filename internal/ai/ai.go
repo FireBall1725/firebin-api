@@ -117,6 +117,11 @@ type ChatResponse struct {
 	// models hit this often enough that accepting it silently would be a
 	// steady trickle of wrong replies.
 	Truncated bool
+	// Thinking is the model's reasoning, when it reports any. Kept rather than
+	// discarded: it is not shown in an answer, but it is often the only thing
+	// that explains a wrong one, and a model that reasons its way to calling the
+	// wrong tool looks identical to one that guessed until you can read it.
+	Thinking string
 }
 
 // UsageInfo is the per-call token count and an estimated cost. Local providers
