@@ -4,11 +4,15 @@
 package handlers
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/firelabsca/firebin-api/internal/api/respond"
 	"github.com/firelabsca/firebin-api/internal/assistant"
+	"github.com/firelabsca/firebin-api/internal/models"
+	"github.com/google/uuid"
 )
 
 type assistantAskRequest struct {
@@ -67,6 +71,7 @@ func (h *Handler) AskAssistant(w http.ResponseWriter, r *http.Request) {
 
 	clearWriteDeadline(w) // see the note in SendMessage
 	runner := &assistant.Runner{Provider: provider, Tools: h.assistantToolbox()}
+	runner.OnRound = h.roundLogger(ctx, nil, provider.Info().Name, provider.ConfiguredModel())
 	turn, _, err := runner.Ask(ctx, nil, req.Question)
 	if err != nil {
 		// The turn is still returned when there is one, because the tool calls
@@ -112,4 +117,33 @@ func (h *Handler) AssistantStatus(w http.ResponseWriter, r *http.Request) {
 		"enabled": enabled,
 		"ready":   enabled && h.AI.Registry().Active() != nil,
 	})
+}
+
+// roundLogger returns an OnRound handler that stores each provider call.
+//
+// Best-effort by design: a debug log that fails to write must never fail the
+// answer someone is waiting for, so an error here is logged and dropped.
+// context.WithoutCancel because the most valuable rounds to have a record of
+// are the ones on a turn that was cancelled or timed out.
+func (h *Handler) roundLogger(ctx context.Context, conversationID *uuid.UUID, provider, model string) func(assistant.RoundLog) {
+	return func(l assistant.RoundLog) {
+		row := models.AssistantRoundLog{
+			ConversationID: conversationID,
+			Round:          l.Round,
+			Provider:       provider,
+			Model:          model,
+			URL:            l.URL,
+			Request:        string(l.Request),
+			Response:       string(l.Response),
+			Thinking:       l.Thinking,
+			Status:         l.Status,
+			InputTokens:    l.InputTokens,
+			OutputTokens:   l.OutputTokens,
+			DurationMS:     l.DurationMS,
+			Error:          l.Err,
+		}
+		if err := h.Assistant.RecordRoundLog(context.WithoutCancel(ctx), row); err != nil {
+			slog.Warn("could not store an assistant round log", "error", err, "round", l.Round)
+		}
+	}
 }

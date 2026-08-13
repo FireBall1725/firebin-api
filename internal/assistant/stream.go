@@ -5,9 +5,11 @@ package assistant
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/firelabsca/firebin-api/internal/ai"
 )
@@ -24,6 +26,15 @@ const (
 	// EventRound marks the start of another provider call, so a caller can tell
 	// a long chain from a slow one.
 	EventRound = "round"
+	// EventRetract tells the caller to throw away the answer text streamed so
+	// far this turn.
+	//
+	// Needed because a stray tool call is only recognisable once the round is
+	// complete, and by then its JSON has already been streamed to the screen as
+	// if it were the answer. Without this the user watches a tool call being
+	// typed out and then replaced, which looks like a glitch rather than a
+	// recovery.
+	EventRetract = "retract"
 	// EventUsage reports the turn's token totals so far.
 	//
 	// Emitted when a round finishes, because that is when a provider actually
@@ -95,16 +106,36 @@ func (r *Runner) AskStream(ctx context.Context, history []ai.Message, question s
 	turn := &Turn{}
 	turn.Usage.ModelID = r.Provider.ConfiguredModel()
 
+	unparsed := 0
 	for round := 0; round < maxToolRounds; round++ {
 		emit(Event{Kind: EventRound, Round: round + 1})
 
-		resp, err := streamer.ChatStream(ctx, ai.ChatRequest{
+		rec := ai.NewRoundRecord()
+		started := time.Now()
+		resp, err := streamer.ChatStream(ai.WithRecorder(ctx, rec), ai.ChatRequest{
 			System:   system,
 			Messages: messages,
 			Tools:    r.Tools.Defs(),
 		}, func(delta string) {
 			emit(Event{Kind: EventText, Text: delta})
 		})
+		r.recordRound(round+1, rec, resp, started, err)
+		// Same retry as the unstreamed loop, plus a retraction: the round may
+		// have streamed some text before the runtime gave up on it, and that
+		// text belongs to an attempt that is being thrown away.
+		if errors.Is(err, ai.ErrToolCallUnparsed) && unparsed < maxUnparsedRetries {
+			unparsed++
+			slog.Warn("retrying a round the runtime could not parse",
+				"model", r.Provider.ConfiguredModel(), "attempt", unparsed, "error", err)
+			// Not counted against the round budget. That budget exists to stop a
+			// model calling tools forever; a round the runtime threw away did no
+			// work and looked at nothing, so charging the turn for it just means
+			// a question that hit two bad samples has two fewer lookups to answer
+			// with. maxUnparsedRetries is the bound here.
+			round--
+			emit(Event{Kind: EventRetract})
+			continue
+		}
 		if err != nil {
 			// The partial turn goes back for the same reason as in Ask: the
 			// caller records cost from it, and the steps show how far it got.
@@ -124,6 +155,19 @@ func (r *Runner) AskStream(ctx context.Context, history []ai.Message, question s
 			return turn, messages[addedFrom:], fmt.Errorf("the model ran out of output tokens before finishing")
 		}
 
+		// Same recovery as the unstreamed loop, plus a retraction: the call's
+		// JSON has already been streamed to the screen as though it were the
+		// answer, and leaving it there would make the recovery look like a fault.
+		if len(resp.ToolCalls) == 0 && strings.TrimSpace(resp.Text) != "" {
+			if call, ok := strayToolCall(resp.Text, r.Tools.Defs()); ok {
+				slog.Warn("recovered a tool call from the model's answer",
+					"model", r.Provider.ConfiguredModel(), "tool", call.Name, "round", round+1)
+				resp.ToolCalls = []ai.ToolCall{call}
+				resp.Text = ""
+				emit(Event{Kind: EventRetract})
+			}
+		}
+
 		messages = append(messages, ai.Message{
 			Role: ai.RoleAssistant, Text: resp.Text, ToolCalls: resp.ToolCalls,
 		})
@@ -134,12 +178,21 @@ func (r *Runner) AskStream(ctx context.Context, history []ai.Message, question s
 					"%s returned nothing: no answer and no tool call. The model may be out of context for this conversation, or unable to use tools",
 					r.Provider.Info().DisplayName)
 			}
+			if isJSONObject(unfence(strings.TrimSpace(resp.Text))) {
+				emit(Event{Kind: EventRetract})
+				return turn, messages[addedFrom:], fmt.Errorf(
+					"%s wrote a tool call instead of making one, and it matched no tool here. This usually means the model's tool calling is unreliable on this runtime; a different model is the fix",
+					r.Provider.Info().DisplayName)
+			}
 			turn.Text = resp.Text
 			return turn, messages[addedFrom:], nil
 		}
 
 		results := make([]ai.ToolResult, 0, len(resp.ToolCalls))
 		for _, call := range resp.ToolCalls {
+			// Repaired here as well as inside Run, so the step recorded for the
+			// user names the tool that ran and not the mangled name it arrived as.
+			call = r.Tools.Normalise(call)
 			if err := ctx.Err(); err != nil {
 				return turn, messages[addedFrom:], err
 			}

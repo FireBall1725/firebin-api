@@ -34,6 +34,10 @@ type Service struct {
 	store     *Store
 	deps      *Deps
 	retention time.Duration // finished tasks older than this are pruned; 0 disables
+	// ExtraPrune lets an owner attach its own periodic cleanup to the sweep that
+	// already runs hourly, rather than standing up a second ticker for every
+	// table that needs bounding. Called with the same cadence; own cutoff.
+	ExtraPrune func(context.Context)
 }
 
 // SetRetention configures how long finished tasks are kept before the periodic
@@ -176,6 +180,11 @@ func (s *Service) startReconciler(ctx context.Context) {
 // pruneOnce deletes finished tasks older than the retention window (logs cascade),
 // keeping the tasks table bounded without user action. A no-op when retention is 0.
 func (s *Service) pruneOnce(ctx context.Context) {
+	// Runs before the retention check: an owner's cleanup has its own window and
+	// must not be switched off by TASK_RETENTION=0.
+	if s.ExtraPrune != nil {
+		s.ExtraPrune(ctx)
+	}
 	if s.retention <= 0 {
 		return
 	}

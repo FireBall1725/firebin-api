@@ -37,6 +37,12 @@ func postJSON(ctx context.Context, url string, body, out any, setHeaders func(ht
 	if err != nil {
 		return fmt.Errorf("encode request: %w", err)
 	}
+	// The one place every unstreamed provider call passes through, so recording
+	// here covers all four providers and keeps the wire truth — including the
+	// provider-specific options a neutral ChatRequest cannot show.
+	rec := recorderFrom(ctx)
+	rec.request(url, buf)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(buf))
 	if err != nil {
 		return err
@@ -48,16 +54,19 @@ func postJSON(ctx context.Context, url string, body, out any, setHeaders func(ht
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		rec.fail(err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxProviderBody))
 	if err != nil {
+		rec.fail(err)
 		return fmt.Errorf("read response: %w", err)
 	}
+	rec.response(resp.StatusCode, raw)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("%s", providerError(resp.StatusCode, raw))
+		return classifyProviderError(providerError(resp.StatusCode, raw))
 	}
 	if err := json.Unmarshal(raw, out); err != nil {
 		return fmt.Errorf("decode response: %w: %s", err, snippet(raw))
@@ -85,7 +94,7 @@ func getJSON(ctx context.Context, url string, out any, setHeaders func(http.Head
 		return fmt.Errorf("read response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("%s", providerError(resp.StatusCode, raw))
+		return classifyProviderError(providerError(resp.StatusCode, raw))
 	}
 	return json.Unmarshal(raw, out)
 }
@@ -157,6 +166,18 @@ func maxTokensOr(v, def int) int {
 // Providers that return reasoning in a separate field are handled at the call
 // site instead; this is only for the ones that inline it.
 func stripThinking(s string) string {
+	text, _ := splitThinking(s)
+	return text
+}
+
+// splitThinking is stripThinking that keeps what it removed.
+//
+// The reasoning is worth having even though it is never shown in an answer: it
+// is frequently the only thing that explains a wrong one. A model that reasoned
+// its way to the wrong tool and one that guessed produce the same reply, and
+// only the deliberation tells them apart.
+func splitThinking(s string) (text, thinking string) {
+	var thoughts []string
 	for {
 		start := strings.Index(s, "<think>")
 		if start < 0 {
@@ -166,10 +187,25 @@ func stripThinking(s string) string {
 		if end < 0 {
 			// An unclosed tag means the model was cut off mid-thought. Keeping
 			// the prefix is better than returning the whole deliberation.
+			thoughts = append(thoughts, s[start+len("<think>"):])
 			s = s[:start]
 			break
 		}
+		thoughts = append(thoughts, s[start+len("<think>"):start+end])
 		s = s[:start] + s[start+end+len("</think>"):]
 	}
-	return strings.TrimSpace(s)
+	return strings.TrimSpace(s), strings.TrimSpace(strings.Join(thoughts, "\n"))
+}
+
+// joinThinking merges reasoning from a provider's own field with any that came
+// inline, keeping whichever is present without inventing a separator when only
+// one is.
+func joinThinking(parts ...string) string {
+	kept := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			kept = append(kept, s)
+		}
+	}
+	return strings.Join(kept, "\n")
 }

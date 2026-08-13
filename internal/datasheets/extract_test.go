@@ -11,7 +11,12 @@ import (
 
 // A PDF with a real text layer, hand-built so the test does not depend on a
 // binary fixture. Two pages, one line of text each.
-func textPDF() []byte {
+func textPDF() []byte { return pdfWithTitle("") }
+
+// pdfWithTitle is textPDF plus an Info dictionary, which is where a PDF declares
+// what it is called. An empty title leaves the dictionary out entirely, which is
+// what most real documents do.
+func pdfWithTitle(title string) []byte {
 	objs := []string{
 		"<</Type/Catalog/Pages 2 0 R>>",
 		"<</Type/Pages/Kids[3 0 R 4 0 R]/Count 2>>",
@@ -20,6 +25,11 @@ func textPDF() []byte {
 		"", // 5: stream, filled below
 		"", // 6: stream, filled below
 		"<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+	}
+	trailerInfo := ""
+	if title != "" {
+		objs = append(objs, "<</Title("+title+")/Producer(FireBin test)>>")
+		trailerInfo = "/Info " + itoa(len(objs)) + " 0 R"
 	}
 	page1 := "BT /F1 12 Tf 72 700 Td (Deep-sleep current 7 uA typical) Tj ET"
 	page2 := "BT /F1 12 Tf 72 700 Td (Peak supply current 0.5 A) Tj ET"
@@ -43,7 +53,7 @@ func textPDF() []byte {
 	for i := 1; i <= len(objs); i++ {
 		b.WriteString(pad10(offsets[i]) + " 00000 n \n")
 	}
-	b.WriteString("trailer\n<</Size " + itoa(len(objs)+1) + "/Root 1 0 R>>\nstartxref\n" + itoa(start) + "\n%%EOF\n")
+	b.WriteString("trailer\n<</Size " + itoa(len(objs)+1) + "/Root 1 0 R" + trailerInfo + ">>\nstartxref\n" + itoa(start) + "\n%%EOF\n")
 	return []byte(b.String())
 }
 
@@ -162,5 +172,40 @@ func TestPageTextIsCapped(t *testing.T) {
 	out := normalize(huge)
 	if len([]rune(out)) <= maxPageRunes {
 		t.Skip("normalize did not exceed the cap; nothing to check here")
+	}
+}
+
+// The title a PDF declares about itself, end to end: trailer, Info dictionary,
+// and the filter. Worth pinning because neither of the real documents on hand
+// exercises the working path — one declares nothing at all, the other declares
+// its own source filename, which is exactly what CleanTitle throws away.
+func TestExtractPagesReadsTheDeclaredTitle(t *testing.T) {
+	res, err := ExtractPages(pdfWithTitle("ESP32-C6 Series Datasheet"))
+	if err != nil {
+		t.Fatalf("ExtractPages: %v", err)
+	}
+	if res.Title != "ESP32-C6 Series Datasheet" {
+		t.Errorf("Title = %q, want the declared one", res.Title)
+	}
+}
+
+func TestExtractPagesRejectsAFilenameTitle(t *testing.T) {
+	res, err := ExtractPages(pdfWithTitle("036-00019-A_mnl.pdf"))
+	if err != nil {
+		t.Fatalf("ExtractPages: %v", err)
+	}
+	if res.Title != "" {
+		t.Errorf("Title = %q, want it rejected so the filename is kept", res.Title)
+	}
+}
+
+// No Info dictionary at all, which is the common case.
+func TestExtractPagesTitleIsEmptyWhenUndeclared(t *testing.T) {
+	res, err := ExtractPages(textPDF())
+	if err != nil {
+		t.Fatalf("ExtractPages: %v", err)
+	}
+	if res.Title != "" {
+		t.Errorf("Title = %q, want empty", res.Title)
 	}
 }

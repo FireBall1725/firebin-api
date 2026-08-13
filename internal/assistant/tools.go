@@ -122,6 +122,7 @@ func (t *Toolbox) Defs() []ai.ToolDef {
 // can try a different tool or say it cannot answer. Aborting the turn would
 // turn a recoverable mistake into a failed question.
 func (t *Toolbox) Run(ctx context.Context, call ai.ToolCall) ai.ToolResult {
+	call = t.Normalise(call)
 	res := ai.ToolResult{CallID: call.ID, Name: call.Name}
 	for _, tool := range t.Tools() {
 		if tool.Def.Name != call.Name {
@@ -147,6 +148,27 @@ func (t *Toolbox) Run(ctx context.Context, call ai.ToolCall) ai.ToolResult {
 	// mistake instead of a dead end.
 	res.Content = fmt.Sprintf("no tool named %q. Available: %s", call.Name, strings.Join(t.names(), ", "))
 	return res
+}
+
+// Normalise repairs a tool name the runtime mangled.
+//
+// gpt-oss addresses tools in the Harmony format as
+// "functions.read_datasheet_page", and Ollama's parser sometimes loses the half
+// after the dot: what arrives is a call named "functions?" or "2?" carrying
+// perfectly good arguments. Applied by Run, and separately by the loops before
+// they record what was called, so the step the user reads names the tool that
+// actually ran rather than the corruption.
+//
+// A no-op for a name that is already right, so calling it twice is free.
+func (t *Toolbox) Normalise(call ai.ToolCall) ai.ToolCall {
+	name, ok := resolveToolName(call, t.Defs())
+	if !ok || name == call.Name {
+		return call
+	}
+	slog.Warn("recovered a mangled tool name",
+		"received", call.Name, "resolved", name, "args", string(call.Input))
+	call.Name = name
+	return call
 }
 
 // runGuarded runs a tool and turns a panic into an ordinary tool failure.

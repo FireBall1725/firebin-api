@@ -324,6 +324,30 @@ type AssistantRun struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// AssistantRoundLog is one provider call: what went out, what came back, and
+// what it cost. One turn produces several of these.
+//
+// Request and Response are raw provider JSON, kept as strings because nothing
+// here reads into them; they exist to be shown to a person debugging a bad
+// answer.
+type AssistantRoundLog struct {
+	ID             uuid.UUID  `json:"id"`
+	ConversationID *uuid.UUID `json:"conversation_id,omitempty"`
+	Round          int        `json:"round"`
+	Provider       string     `json:"provider"`
+	Model          string     `json:"model"`
+	URL            string     `json:"url,omitempty"`
+	Request        string     `json:"request,omitempty"`
+	Response       string     `json:"response,omitempty"`
+	Thinking       string     `json:"thinking,omitempty"`
+	Status         int        `json:"status,omitempty"`
+	InputTokens    int        `json:"input_tokens"`
+	OutputTokens   int        `json:"output_tokens"`
+	DurationMS     int        `json:"duration_ms"`
+	Error          string     `json:"error,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+}
+
 // AssistantUsage totals a user's spend.
 type AssistantUsage struct {
 	Turns         int     `json:"turns"`

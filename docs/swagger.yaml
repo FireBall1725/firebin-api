@@ -103,6 +103,39 @@ definitions:
       user_id:
         type: string
     type: object
+  github_com_firelabsca_firebin-api_internal_models.AssistantRoundLog:
+    properties:
+      conversation_id:
+        type: string
+      created_at:
+        type: string
+      duration_ms:
+        type: integer
+      error:
+        type: string
+      id:
+        type: string
+      input_tokens:
+        type: integer
+      model:
+        type: string
+      output_tokens:
+        type: integer
+      provider:
+        type: string
+      request:
+        type: string
+      response:
+        type: string
+      round:
+        type: integer
+      status:
+        type: integer
+      thinking:
+        type: string
+      url:
+        type: string
+    type: object
   github_com_firelabsca_firebin-api_internal_models.AssistantUsage:
     properties:
       cost_usd:
@@ -268,6 +301,13 @@ definitions:
     type: object
   github_com_firelabsca_firebin-api_internal_models.Datasheet:
     properties:
+      category_id:
+        description: |-
+          CategoryID is the document's own category, set by hand. Null is the normal
+          state for a mirrored datasheet, which is sorted by the parts it is linked
+          to; this exists so a loose upload can be sorted without inventing a part
+          for it. The name is not carried: the web already holds the category list.
+        type: string
       created_at:
         type: string
       extracted_at:
@@ -1134,6 +1174,8 @@ definitions:
     type: object
   internal_api_handlers.datasheetPatchRequest:
     properties:
+      category_id:
+        type: string
       title:
         type: string
     type: object
@@ -1340,6 +1382,40 @@ paths:
       security:
       - BearerAuth: []
       summary: Get an assistant conversation
+      tags:
+      - assistant
+  /assistant/conversations/{id}/logs:
+    get:
+      description: 'Every provider call made in a conversation: what was sent, what
+        came back, the model''s reasoning, tokens and timing.'
+      parameters:
+      - description: Conversation id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.AssistantRoundLog'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get the AI logs for a conversation
       tags:
       - assistant
   /assistant/messages:
@@ -2132,7 +2208,9 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Change a datasheet's display title.
+      description: Change a datasheet's display title or the category it is filed
+        under. Only the fields present in the body are changed; send null to clear
+        one.
       parameters:
       - description: Datasheet id
         in: path
@@ -5060,6 +5138,53 @@ paths:
       security:
       - BearerAuth: []
       summary: Test an AI provider
+      tags:
+      - settings
+  /settings/assistant/logs:
+    delete:
+      description: Delete every stored provider request and response.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Clear the AI logs
+      tags:
+      - settings
+    get:
+      description: The most recent provider calls on this instance, newest first.
+      parameters:
+      - description: How many to return (default 50, max 200)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_firelabsca_firebin-api_internal_models.AssistantRoundLog'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Recent AI logs
       tags:
       - settings
   /settings/datasheets:

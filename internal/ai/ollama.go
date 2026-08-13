@@ -40,7 +40,7 @@ type OllamaProvider struct {
 	// numCtx is the context window to ask Ollama for, in tokens.
 	//
 	// Ollama does NOT use the model's own context length. It allocates its own
-	// default, which is small, and silently truncates anything longer — no error,
+	// default, which is small, and silently truncates anything longer: no error,
 	// no warning, just a model that answers from a prompt with the middle cut
 	// out. A tool-calling turn blows past that easily: one real question here
 	// reached 10,724 input tokens over four rounds against a model advertising
@@ -80,7 +80,7 @@ func (p *OllamaProvider) Info() ProviderInfo {
 				Placeholder: strconv.Itoa(ollamaDefaultNumCtx),
 				HelpText: "Tokens of context to ask Ollama for. Ollama ignores the model's own " +
 					"context length and applies a much smaller default, then truncates a longer " +
-					"prompt without saying so — which shows up as the assistant running its tools " +
+					"prompt without saying so, which shows up as the assistant running its tools " +
 					"and then answering nothing. Raise this if that happens; lower it if the host " +
 					"runs short of memory. It cannot exceed what the model supports.",
 			},
@@ -205,13 +205,15 @@ func (p *OllamaProvider) Chat(ctx context.Context, req ChatRequest) (*ChatRespon
 		return nil, fmt.Errorf("ollama: %w", err)
 	}
 	if out.Error != "" {
-		return nil, fmt.Errorf("ollama: %s", out.Error)
+		return nil, fmt.Errorf("ollama: %w", classifyProviderError(out.Error))
 	}
 
+	// Reasoning arrives in its own field on newer versions and inline in
+	// <think> tags on older ones. Keep both; only the answer is shown.
+	text, inlineThinking := splitThinking(out.Message.Content)
 	resp := &ChatResponse{
-		// Reasoning arrives in its own field on newer versions and inline in
-		// <think> tags on older ones. Drop both.
-		Text:      stripThinking(out.Message.Content),
+		Text:      text,
+		Thinking:  joinThinking(out.Message.Thinking, inlineThinking),
 		Truncated: out.DoneReason == "length",
 	}
 	for i, tc := range out.Message.ToolCalls {
@@ -259,6 +261,9 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req ChatRequest, onText
 	var text strings.Builder
 	var toolCalls []ollamaToolCall
 	var doneReason string
+	// Reasoning streams in its own field, frame by frame, and was previously
+	// dropped on the floor.
+	var thinking strings.Builder
 
 	err := streamLines(ctx, strings.TrimSuffix(p.baseURL, "/")+"/api/chat", body, p.setAuth, func(line string) error {
 		line = strings.TrimSpace(line)
@@ -270,11 +275,18 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req ChatRequest, onText
 			return nil
 		}
 		if chunk.Error != "" {
-			return fmt.Errorf("%s", chunk.Error)
+			// A 200 with an error frame partway through the stream. Classified
+			// rather than passed through, so the loop can tell a tool call the
+			// runtime failed to parse (worth another attempt) from a real fault.
+			return classifyProviderError(chunk.Error)
 		}
 		if c := chunk.Message.Content; c != "" {
 			text.WriteString(c)
 			onText(c)
+		}
+		// Not passed to onText: it is for the log, not the answer on screen.
+		if t := chunk.Message.Thinking; t != "" {
+			thinking.WriteString(t)
 		}
 		toolCalls = append(toolCalls, chunk.Message.ToolCalls...)
 		if chunk.DoneReason != "" {
@@ -293,7 +305,9 @@ func (p *OllamaProvider) ChatStream(ctx context.Context, req ChatRequest, onText
 		return nil, fmt.Errorf("ollama: %w", err)
 	}
 
-	resp.Text = stripThinking(text.String())
+	textOut, inlineThinking := splitThinking(text.String())
+	resp.Text = textOut
+	resp.Thinking = joinThinking(thinking.String(), inlineThinking)
 	resp.Truncated = doneReason == "length"
 	for i, tc := range toolCalls {
 		args := tc.Function.Arguments

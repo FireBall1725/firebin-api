@@ -25,6 +25,9 @@ type ExtractResult struct {
 	// HasText is false for a document with pages but no text layer at all: a
 	// scan. That is a normal outcome, not a failure.
 	HasText bool
+	// Title is what the PDF says it is called, once it has survived DocumentTitle.
+	// Empty when it declares nothing usable, which is most of the time.
+	Title string
 }
 
 // maxPageRunes caps how much text is kept per page.
@@ -66,6 +69,7 @@ func ExtractPages(content []byte) (res ExtractResult, err error) {
 	if res.PageCount < 0 {
 		res.PageCount = 0
 	}
+	res.Title = documentTitle(r)
 
 	// Fonts are cached across pages: parsing a charmap is the expensive part and
 	// a datasheet reuses the same handful of fonts throughout.

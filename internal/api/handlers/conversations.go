@@ -192,6 +192,7 @@ func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	clearWriteDeadline(w)
 
 	runner := &assistant.Runner{Provider: provider, Tools: h.assistantToolbox()}
+	runner.OnRound = h.roundLogger(ctx, &conv.ID, provider.Info().Name, provider.ConfiguredModel())
 	turn, added, askErr := runner.Ask(ctx, history, question)
 
 	// Record the cost first, and record it whether or not the turn worked. A

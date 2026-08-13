@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/firelabsca/firebin-api/internal/models"
 	"github.com/google/uuid"
@@ -228,4 +229,133 @@ func (r *AssistantRepo) DeleteConversation(ctx context.Context, userID, id uuid.
 		return ErrNotFound
 	}
 	return nil
+}
+
+// roundLogCols is the column order every round-log scan reads.
+const roundLogCols = `id, conversation_id, round, provider, model, url, request, response,
+	thinking, status, input_tokens, output_tokens, duration_ms, error, created_at`
+
+func scanRoundLog(row pgx.Row) (*models.AssistantRoundLog, error) {
+	var l models.AssistantRoundLog
+	var url, request, response, thinking, errText *string
+	var status *int
+	if err := row.Scan(&l.ID, &l.ConversationID, &l.Round, &l.Provider, &l.Model,
+		&url, &request, &response, &thinking, &status,
+		&l.InputTokens, &l.OutputTokens, &l.DurationMS, &errText, &l.CreatedAt); err != nil {
+		return nil, err
+	}
+	l.URL = derefStr(url)
+	l.Request = derefStr(request)
+	l.Response = derefStr(response)
+	l.Thinking = derefStr(thinking)
+	l.Error = derefStr(errText)
+	if status != nil {
+		l.Status = *status
+	}
+	return &l, nil
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// RecordRoundLog stores one provider call.
+//
+// Errors are the caller's to swallow: a debug log that fails to write must not
+// fail the answer the user was waiting for.
+func (r *AssistantRepo) RecordRoundLog(ctx context.Context, l models.AssistantRoundLog) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO assistant_round_logs
+			(conversation_id, round, provider, model, url, request, response, thinking,
+			 status, input_tokens, output_tokens, duration_ms, error)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+		l.ConversationID, l.Round, l.Provider, l.Model,
+		nilIfEmpty(l.URL), nilIfEmpty(l.Request), nilIfEmpty(l.Response), nilIfEmpty(l.Thinking),
+		nilIfZero(l.Status), l.InputTokens, l.OutputTokens, l.DurationMS, nilIfEmpty(l.Error))
+	return err
+}
+
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func nilIfZero(n int) *int {
+	if n == 0 {
+		return nil
+	}
+	return &n
+}
+
+// RoundLogsForConversation returns the calls made for one conversation, oldest
+// first so the rounds read in the order they happened.
+func (r *AssistantRepo) RoundLogsForConversation(ctx context.Context, conversationID uuid.UUID, limit int) ([]models.AssistantRoundLog, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT `+roundLogCols+` FROM assistant_round_logs
+		 WHERE conversation_id = $1 ORDER BY created_at, round LIMIT $2`, conversationID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.AssistantRoundLog{}
+	for rows.Next() {
+		l, err := scanRoundLog(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *l)
+	}
+	return out, rows.Err()
+}
+
+// RecentRoundLogs is the settings view: the last calls made on this instance,
+// newest first, whatever conversation they belonged to.
+func (r *AssistantRepo) RecentRoundLogs(ctx context.Context, limit int) ([]models.AssistantRoundLog, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT `+roundLogCols+` FROM assistant_round_logs ORDER BY created_at DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.AssistantRoundLog{}
+	for rows.Next() {
+		l, err := scanRoundLog(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *l)
+	}
+	return out, rows.Err()
+}
+
+// PruneRoundLogs deletes logs older than the cutoff and reports how many went.
+//
+// These rows are large — a tool-calling round re-sends the whole conversation —
+// so they are the one part of the assistant that would grow without bound.
+func (r *AssistantRepo) PruneRoundLogs(ctx context.Context, before time.Time) (int64, error) {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM assistant_round_logs WHERE created_at < $1`, before)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// ClearRoundLogs removes every log, for the button in Settings.
+func (r *AssistantRepo) ClearRoundLogs(ctx context.Context) (int64, error) {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM assistant_round_logs`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }

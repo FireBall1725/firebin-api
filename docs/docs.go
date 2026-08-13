@@ -309,6 +309,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/assistant/conversations/{id}/logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Every provider call made in a conversation: what was sent, what came back, the model's reasoning, tokens and timing.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "assistant"
+                ],
+                "summary": "Get the AI logs for a conversation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Conversation id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.AssistantRoundLog"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/assistant/messages": {
             "post": {
                 "security": [
@@ -1559,7 +1610,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Change a datasheet's display title.",
+                "description": "Change a datasheet's display title or the category it is filed under. Only the fields present in the body are changed; send null to clear one.",
                 "consumes": [
                     "application/json"
                 ],
@@ -5944,6 +5995,80 @@ const docTemplate = `{
                 }
             }
         },
+        "/settings/assistant/logs": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The most recent provider calls on this instance, newest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Recent AI logs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "How many to return (default 50, max 200)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_firelabsca_firebin-api_internal_models.AssistantRoundLog"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete every stored provider request and response.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Clear the AI logs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/settings/datasheets": {
             "get": {
                 "security": [
@@ -8110,6 +8235,56 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_firelabsca_firebin-api_internal_models.AssistantRoundLog": {
+            "type": "object",
+            "properties": {
+                "conversation_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "duration_ms": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "request": {
+                    "type": "string"
+                },
+                "response": {
+                    "type": "string"
+                },
+                "round": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "thinking": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_firelabsca_firebin-api_internal_models.AssistantUsage": {
             "type": "object",
             "properties": {
@@ -8357,6 +8532,10 @@ const docTemplate = `{
         "github_com_firelabsca_firebin-api_internal_models.Datasheet": {
             "type": "object",
             "properties": {
+                "category_id": {
+                    "description": "CategoryID is the document's own category, set by hand. Null is the normal\nstate for a mirrored datasheet, which is sorted by the parts it is linked\nto; this exists so a loose upload can be sorted without inventing a part\nfor it. The name is not carried: the web already holds the category list.",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -9589,6 +9768,9 @@ const docTemplate = `{
         "internal_api_handlers.datasheetPatchRequest": {
             "type": "object",
             "properties": {
+                "category_id": {
+                    "type": "string"
+                },
                 "title": {
                     "type": "string"
                 }
